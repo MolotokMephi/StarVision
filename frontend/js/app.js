@@ -16,7 +16,7 @@ import {
   rebuildSatellites, updateSatellitePositions,
   getSatMeshes, getOrbitLines, getCoverageCones
 } from './scene/satellites.js';
-import { createGroundStations, toggleGSVisibility, getGSMeshes } from './scene/groundStations.js';
+import { createGroundStations, toggleGSVisibility } from './scene/groundStations.js';
 import { initOrbitControls, updateCamera, resetView as resetCameraView } from './scene/camera.js';
 import { updateSatList, showSelectedSatCard, hideSelectedSatCard } from './ui/panels.js';
 import { updateTelemetry, updateSelectedSatTelemetry, updateClocks } from './ui/telemetry.js';
