@@ -3,7 +3,7 @@
 **StarVision** — интерактивная 3D-визуализация цифрового двойника группировки российских кубсатов «Сфера-КС». Проект создан для Национального центра космических компетенций.
 
 ![Status](https://img.shields.io/badge/Статус-В_разработке-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
+![License](https://img.shields.io/badge/License-Unlicense-green)
 
 ## Особенности
 
@@ -170,4 +170,4 @@ StarVision/
 
 ## Лицензия
 
-MIT License — см. файл [LICENSE](LICENSE)
+Unlicense — см. файл [LICENSE](LICENSE)
