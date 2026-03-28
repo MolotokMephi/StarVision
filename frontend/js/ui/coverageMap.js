@@ -5,7 +5,6 @@
 
 import { getSatState } from '../core/constellation.js';
 import { coverageAngle } from '../core/orbitalMechanics.js';
-import { RAD } from '../core/constants.js';
 
 /**
  * Отрисовка 2D-карты покрытия.
@@ -36,14 +35,14 @@ export function drawCoverageMap(satellites, simTime, config, groundStations) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 
-  const ca = coverageAngle(config.altitude, 10) * RAD;
+  const ca = coverageAngle(config.altitude, 10); // рад
 
   // Покрытие и спутники
   satellites.forEach(sat => {
     const st = getSatState(sat, simTime);
     const cx = ((st.lon + 180) / 360) * W;
     const cy = ((90 - st.lat) / 180) * H;
-    const r = (ca / 180) * H;
+    const r = (ca / Math.PI) * H;
 
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
