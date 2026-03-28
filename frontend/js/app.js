@@ -35,9 +35,7 @@ let aiPanel;
 
 // ═══ ИНИЦИАЛИЗАЦИЯ ═══
 function init() {
-  const scene = initScene();
-  const renderer = getRenderer();
-  const camera = getCamera();
+  const { scene, renderer } = initScene();
 
   createEarth(scene);
   initOrbitControls(renderer);

@@ -22,10 +22,10 @@ export class PowerChart {
    */
   update(config, simTime, simSpeed) {
     const dtH = this.lastTime
-      ? ((simTime - this.lastTime) / 3_600_000) * simSpeed
+      ? (simTime - this.lastTime) / 3_600_000
       : 0;
     this.lastTime = simTime;
-    if (dtH <= 0 || dtH > 1) return;
+    if (dtH <= 0) return;
 
     // Фаза орбиты (упрощённая модель тени)
     const orbitPhase = ((simTime / 60_000) % 90) / 90; // 0..1

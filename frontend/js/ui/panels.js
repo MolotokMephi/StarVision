@@ -22,7 +22,6 @@ export function updateSatList(satellites, selectedIndex, onSelect) {
   const max = Math.min(satellites.length, MAX_VISIBLE);
   for (let i = 0; i < max; i++) {
     const sat = satellites[i];
-    const hue = (sat.plane / (satellites.length / (satellites[0]?.index === 0 ? Math.max(1, sat.plane + 1) : 1))) * 360;
     const planeHue = ((sat.plane || 0) * 60) % 360;
 
     const el = document.createElement('div');
