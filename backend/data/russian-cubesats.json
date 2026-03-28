@@ -1,0 +1,306 @@
+[
+  {
+    "id": "tabletsat-aurora",
+    "noradId": 39134,
+    "name": "TabletSat-Aurora",
+    "nameRu": "ТаблетСат-Аврора",
+    "operator": "Sputnix",
+    "operatorRu": "Спутникс",
+    "type": "3U",
+    "launchDate": "2013-06-27",
+    "status": "inactive",
+    "orbitalParams": {
+      "altitude": 575,
+      "inclination": 97.7,
+      "period": 5796
+    },
+    "mission": "Technology demonstration, Earth observation camera testing",
+    "missionRu": "Технологическая демонстрация, тестирование камеры ДЗЗ",
+    "frequency": "437.050 MHz"
+  },
+  {
+    "id": "siriussat-1",
+    "noradId": 43595,
+    "name": "SiriusSat-1",
+    "nameRu": "СириусСат-1",
+    "operator": "Sirius Educational Center / MSU",
+    "operatorRu": "ОЦ «Сириус» / МГУ им. Ломоносова",
+    "type": "1U",
+    "launchDate": "2018-08-15",
+    "status": "inactive",
+    "orbitalParams": {
+      "altitude": 410,
+      "inclination": 51.6,
+      "period": 5556
+    },
+    "mission": "Gamma-ray burst detection, space weather monitoring, educational",
+    "missionRu": "Детектирование гамма-всплесков, мониторинг космической погоды, образовательный",
+    "frequency": "436.600 MHz"
+  },
+  {
+    "id": "siriussat-2",
+    "noradId": 43596,
+    "name": "SiriusSat-2",
+    "nameRu": "СириусСат-2",
+    "operator": "Sirius Educational Center / MSU",
+    "operatorRu": "ОЦ «Сириус» / МГУ им. Ломоносова",
+    "type": "1U",
+    "launchDate": "2018-08-15",
+    "status": "inactive",
+    "orbitalParams": {
+      "altitude": 410,
+      "inclination": 51.6,
+      "period": 5556
+    },
+    "mission": "Gamma-ray burst detection, space weather monitoring, educational",
+    "missionRu": "Детектирование гамма-всплесков, мониторинг космической погоды, образовательный",
+    "frequency": "436.400 MHz"
+  },
+  {
+    "id": "yarilo-1",
+    "noradId": 47951,
+    "name": "Yarilo-1",
+    "nameRu": "Ярило-1",
+    "operator": "BMSTU (Bauman Moscow State Technical University)",
+    "operatorRu": "МГТУ им. Баумана",
+    "type": "1.5U",
+    "launchDate": "2021-03-22",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 530,
+      "inclination": 97.5,
+      "period": 5744
+    },
+    "mission": "Solar activity monitoring, UV and X-ray observations",
+    "missionRu": "Мониторинг солнечной активности, наблюдения в УФ и рентгеновском диапазонах",
+    "frequency": "437.600 MHz"
+  },
+  {
+    "id": "yarilo-2",
+    "noradId": 47952,
+    "name": "Yarilo-2",
+    "nameRu": "Ярило-2",
+    "operator": "BMSTU (Bauman Moscow State Technical University)",
+    "operatorRu": "МГТУ им. Баумана",
+    "type": "1.5U",
+    "launchDate": "2021-03-22",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 530,
+      "inclination": 97.5,
+      "period": 5744
+    },
+    "mission": "Solar activity monitoring, UV and X-ray observations",
+    "missionRu": "Мониторинг солнечной активности, наблюдения в УФ и рентгеновском диапазонах",
+    "frequency": "437.650 MHz"
+  },
+  {
+    "id": "orbicraft-zorkiy",
+    "noradId": 49399,
+    "name": "OrbiCraft-Zorkiy",
+    "nameRu": "ОрбиКрафт-Зоркий",
+    "operator": "Sputnix",
+    "operatorRu": "Спутникс",
+    "type": "6U",
+    "launchDate": "2021-09-09",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 555,
+      "inclination": 97.6,
+      "period": 5776
+    },
+    "mission": "Earth observation with sub-meter resolution, technology demonstration",
+    "missionRu": "ДЗЗ с субметровым разрешением, технологическая демонстрация",
+    "frequency": "437.125 MHz"
+  },
+  {
+    "id": "geoscan-edelveis",
+    "noradId": 57167,
+    "name": "Geoscan-Edelveis",
+    "nameRu": "Геоскан-Эдельвейс",
+    "operator": "Geoscan Group",
+    "operatorRu": "Группа компаний «Геоскан»",
+    "type": "3U",
+    "launchDate": "2023-06-27",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 555,
+      "inclination": 97.6,
+      "period": 5776
+    },
+    "mission": "Technology demonstration, amateur radio, educational payload",
+    "missionRu": "Технологическая демонстрация, любительская радиосвязь, образовательная нагрузка",
+    "frequency": "436.200 MHz"
+  },
+  {
+    "id": "norbi-1",
+    "noradId": 53384,
+    "name": "NORBI-1",
+    "nameRu": "НОРБИ-1",
+    "operator": "NSU (Novosibirsk State University)",
+    "operatorRu": "НГУ (Новосибирский государственный университет)",
+    "type": "6U",
+    "launchDate": "2022-08-09",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 540,
+      "inclination": 97.5,
+      "period": 5754
+    },
+    "mission": "Earth observation, environmental monitoring of Lake Baikal region",
+    "missionRu": "ДЗЗ, экологический мониторинг региона озера Байкал",
+    "frequency": "437.375 MHz"
+  },
+  {
+    "id": "norbi-2",
+    "noradId": 53385,
+    "name": "NORBI-2",
+    "nameRu": "НОРБИ-2",
+    "operator": "NSU (Novosibirsk State University)",
+    "operatorRu": "НГУ (Новосибирский государственный университет)",
+    "type": "6U",
+    "launchDate": "2022-08-09",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 540,
+      "inclination": 97.5,
+      "period": 5754
+    },
+    "mission": "Earth observation, environmental monitoring, paired with NORBI-1",
+    "missionRu": "ДЗЗ, экологический мониторинг, работа в паре с НОРБИ-1",
+    "frequency": "437.425 MHz"
+  },
+  {
+    "id": "cubesx-hse",
+    "noradId": 49398,
+    "name": "CubeSX-HSE",
+    "nameRu": "КубСХ-ВШЭ",
+    "operator": "HSE University / Sputnix",
+    "operatorRu": "НИУ ВШЭ / Спутникс",
+    "type": "3U",
+    "launchDate": "2021-09-09",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 555,
+      "inclination": 97.6,
+      "period": 5776
+    },
+    "mission": "Earth observation, AI-based image processing on-board",
+    "missionRu": "ДЗЗ, бортовая обработка изображений с использованием ИИ",
+    "frequency": "437.100 MHz"
+  },
+  {
+    "id": "tusur-go",
+    "noradId": 48901,
+    "name": "TUSUR-GO",
+    "nameRu": "ТУСУР-ГО",
+    "operator": "TUSUR (Tomsk State University of Control Systems and Radioelectronics)",
+    "operatorRu": "ТУСУР (Томский государственный университет систем управления и радиоэлектроники)",
+    "type": "3U",
+    "launchDate": "2021-06-30",
+    "status": "inactive",
+    "orbitalParams": {
+      "altitude": 530,
+      "inclination": 97.5,
+      "period": 5744
+    },
+    "mission": "Technology demonstration, AIS receiver, educational",
+    "missionRu": "Технологическая демонстрация, приёмник АИС, образовательный",
+    "frequency": "437.475 MHz"
+  },
+  {
+    "id": "decawave-rt1",
+    "noradId": 44394,
+    "name": "Decawave RT-1",
+    "nameRu": "Декавэйв РТ-1",
+    "operator": "Reshetnev University / KSTU",
+    "operatorRu": "СибГУ им. Решетнёва / КГТУ",
+    "type": "1U",
+    "launchDate": "2019-07-05",
+    "status": "inactive",
+    "orbitalParams": {
+      "altitude": 500,
+      "inclination": 97.4,
+      "period": 5696
+    },
+    "mission": "UWB ranging technology experiment in space, educational",
+    "missionRu": "Эксперимент по UWB-дальнометрии в космосе, образовательный",
+    "frequency": "437.000 MHz"
+  },
+  {
+    "id": "sputnix-d1",
+    "noradId": 44396,
+    "name": "Sputnix-D1",
+    "nameRu": "Спутникс-Д1",
+    "operator": "Sputnix",
+    "operatorRu": "Спутникс",
+    "type": "1U",
+    "launchDate": "2019-07-05",
+    "status": "inactive",
+    "orbitalParams": {
+      "altitude": 500,
+      "inclination": 97.4,
+      "period": 5696
+    },
+    "mission": "Technology demonstration platform, S-band transmitter test",
+    "missionRu": "Технологическая демонстрационная платформа, тестирование S-диапазона",
+    "frequency": "437.050 MHz"
+  },
+  {
+    "id": "amgu-1",
+    "noradId": 48900,
+    "name": "AMGU-1",
+    "nameRu": "АМГУ-1",
+    "operator": "AmSU (Amur State University)",
+    "operatorRu": "АмГУ (Амурский государственный университет)",
+    "type": "1U",
+    "launchDate": "2021-06-30",
+    "status": "inactive",
+    "orbitalParams": {
+      "altitude": 530,
+      "inclination": 97.5,
+      "period": 5744
+    },
+    "mission": "Ionospheric research, educational payload",
+    "missionRu": "Исследование ионосферы, образовательная нагрузка",
+    "frequency": "437.525 MHz"
+  },
+  {
+    "id": "cyclops",
+    "noradId": 57170,
+    "name": "Cyclops",
+    "nameRu": "Циклоп",
+    "operator": "BMSTU",
+    "operatorRu": "МГТУ им. Баумана",
+    "type": "3U",
+    "launchDate": "2023-06-27",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 555,
+      "inclination": 97.6,
+      "period": 5776
+    },
+    "mission": "Wide-angle Earth observation, on-board data processing",
+    "missionRu": "Широкоугольная съёмка Земли, бортовая обработка данных",
+    "frequency": "437.550 MHz"
+  },
+  {
+    "id": "skoltech-b1",
+    "noradId": 57171,
+    "name": "Skoltech-B1",
+    "nameRu": "Сколтех-Б1",
+    "operator": "Skoltech (Skolkovo Institute of Science and Technology)",
+    "operatorRu": "Сколтех (Сколковский институт науки и технологий)",
+    "type": "3U",
+    "launchDate": "2023-06-27",
+    "status": "active",
+    "orbitalParams": {
+      "altitude": 555,
+      "inclination": 97.6,
+      "period": 5776
+    },
+    "mission": "Intersatellite communication experiment, IoT relay",
+    "missionRu": "Эксперимент по межспутниковой связи, ретрансляция IoT",
+    "frequency": "437.700 MHz"
+  }
+]
