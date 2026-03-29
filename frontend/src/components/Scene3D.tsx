@@ -1,12 +1,36 @@
-import { Suspense, useRef, useMemo, useEffect } from 'react';
+import { Suspense, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera } from '@react-three/drei';
 import { Vector3 } from 'three';
+import { twoline2satrec, propagate } from 'satellite.js';
+import { getSimTime } from '../simClock';
 import { Earth } from './Earth';
 import { Satellites } from './Satellites';
 import { InterSatelliteLinks } from './InterSatelliteLinks';
 import { useStore } from '../hooks/useStore';
 import type { SatellitePosition, OrbitPoint, TLEData } from '../types';
+
+const EARTH_RADIUS = 6371.0;
+const MU = 398600.4418;
+const CAM_SCALE = 1 / EARTH_RADIUS;
+
+// ── Helper: compute virtual orbit position ──────────────────────────
+function computeVirtualECI(index: number, total: number, altKm: number, simTimeSec: number) {
+  const a = EARTH_RADIUS + altKm;
+  const n = Math.sqrt(MU / (a * a * a));
+  const incl = (55 * Math.PI) / 180;
+  const raan = (index / total) * 2 * Math.PI;
+  const phase = (index / total) * 2 * Math.PI;
+  const M = n * simTimeSec + phase;
+  const xOrb = a * Math.cos(M);
+  const yOrb = a * Math.sin(M);
+  const xInc = xOrb;
+  const yInc = yOrb * Math.cos(incl);
+  const zInc = yOrb * Math.sin(incl);
+  const cosR = Math.cos(raan);
+  const sinR = Math.sin(raan);
+  return { x: xInc * cosR - yInc * sinR, y: xInc * sinR + yInc * cosR, z: zInc };
+}
 
 // ── Сетка координат (экватор + меридианы) ───────────────────────────
 function CoordinateGrid() {
@@ -64,46 +88,99 @@ function CoordinateGrid() {
   );
 }
 
-// ── Контроллер камеры: плавный lerp к выбранному спутнику ───────────
+// ── Контроллер камеры: следование за спутником ──────────────────────
 interface CameraControllerProps {
-  positions: SatellitePosition[];
+  tleData: TLEData[];
+  orbitAltitudeKm: number;
+  satelliteCount: number;
+  controlsRef: React.RefObject<any>;
 }
 
-function CameraController({ positions }: CameraControllerProps) {
+function CameraController({ tleData, orbitAltitudeKm, satelliteCount, controlsRef }: CameraControllerProps) {
   const { camera } = useThree();
-  const { focusedSatellite, selectedSatellite } = useStore();
-
-  const targetRef = useRef<Vector3 | null>(null);
+  const { focusedSatellite, selectedSatellite, cameraFollowing, setCameraFollowing } = useStore();
+  const prevDistRef = useRef<number>(0);
   const isAnimatingRef = useRef(false);
+  const offsetRef = useRef(new Vector3(0, 0.3, 0.8));
 
-  // Когда выбирают спутник — задаём цель для камеры
+  const satrecsRef = useRef<Record<number, ReturnType<typeof twoline2satrec>>>({});
+
+  useEffect(() => {
+    const map: Record<number, ReturnType<typeof twoline2satrec>> = {};
+    tleData.forEach((tle) => {
+      map[tle.norad_id] = twoline2satrec(tle.tle_line1, tle.tle_line2);
+    });
+    satrecsRef.current = map;
+  }, [tleData]);
+
+  // Get current ECI position for any satellite id
+  const getSatPosition = useCallback((id: number): Vector3 | null => {
+    const simTime = getSimTime();
+    if (orbitAltitudeKm > 0 && id >= 90000) {
+      const idx = id - 90000;
+      const eci = computeVirtualECI(idx, satelliteCount, orbitAltitudeKm, simTime / 1000);
+      return new Vector3(eci.x * CAM_SCALE, eci.z * CAM_SCALE, -eci.y * CAM_SCALE);
+    }
+    const satrec = satrecsRef.current[id];
+    if (!satrec) return null;
+    const pv = propagate(satrec, new Date(simTime));
+    if (!pv.position || typeof pv.position === 'boolean') return null;
+    const pos = pv.position as { x: number; y: number; z: number };
+    return new Vector3(pos.x * CAM_SCALE, pos.z * CAM_SCALE, -pos.y * CAM_SCALE);
+  }, [orbitAltitudeKm, satelliteCount]);
+
+  // Start animation when focus changes
   useEffect(() => {
     const id = focusedSatellite ?? selectedSatellite;
     if (id == null) {
-      targetRef.current = null;
       isAnimatingRef.current = false;
       return;
     }
-    const pos = positions.find((p) => p.norad_id === id);
-    if (!pos) return;
-
-    const SCALE = 1 / 6371;
-    const target = new Vector3(
-      pos.eci.x * SCALE,
-      pos.eci.z * SCALE,
-      -pos.eci.y * SCALE
-    );
-    // Камера встаёт чуть дальше от Земли, в направлении спутника
-    const camTarget = target.clone().normalize().multiplyScalar(target.length() + 1.2);
-    targetRef.current = camTarget;
     isAnimatingRef.current = true;
-  }, [focusedSatellite, selectedSatellite, positions]);
+    prevDistRef.current = camera.position.length();
+  }, [focusedSatellite, selectedSatellite]);
 
   useFrame(() => {
-    if (!isAnimatingRef.current || !targetRef.current) return;
-    camera.position.lerp(targetRef.current, 0.04);
-    if (camera.position.distanceTo(targetRef.current) < 0.01) {
-      isAnimatingRef.current = false;
+    const id = cameraFollowing ? (focusedSatellite ?? selectedSatellite) : null;
+
+    // Detect user zoom-out to break follow
+    if (cameraFollowing && id != null) {
+      const currentDist = camera.position.length();
+      if (prevDistRef.current > 0 && currentDist > prevDistRef.current + 0.3) {
+        setCameraFollowing(false);
+        isAnimatingRef.current = false;
+        return;
+      }
+      prevDistRef.current = currentDist;
+    }
+
+    if (!isAnimatingRef.current && !cameraFollowing) return;
+
+    const targetId = focusedSatellite ?? selectedSatellite;
+    if (targetId == null) return;
+
+    const satPos = getSatPosition(targetId);
+    if (!satPos) return;
+
+    // Camera target: offset from satellite in outward direction
+    const dir = satPos.clone().normalize();
+    const camTarget = satPos.clone().add(dir.multiplyScalar(0.6)).add(offsetRef.current);
+
+    if (isAnimatingRef.current) {
+      camera.position.lerp(camTarget, 0.06);
+      camera.lookAt(satPos);
+      if (controlsRef.current) {
+        controlsRef.current.target.lerp(satPos, 0.06);
+      }
+      if (camera.position.distanceTo(camTarget) < 0.05) {
+        isAnimatingRef.current = false;
+      }
+    } else if (cameraFollowing) {
+      // Continuous follow — smooth tracking
+      camera.position.lerp(camTarget, 0.03);
+      if (controlsRef.current) {
+        controlsRef.current.target.lerp(satPos, 0.05);
+      }
     }
   });
 
@@ -133,11 +210,14 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
     selectSatellite,
   } = useStore();
 
+  const controlsRef = useRef<any>(null);
+
   return (
     <>
       {/* Камера */}
       <PerspectiveCamera makeDefault position={[0, 2, 4]} fov={50} near={0.01} far={1000} />
       <OrbitControls
+        ref={controlsRef}
         enablePan={false}
         minDistance={1.5}
         maxDistance={20}
@@ -147,8 +227,13 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
         dampingFactor={0.05}
       />
 
-      {/* Контроллер камеры: lerp к спутнику */}
-      <CameraController positions={positions} />
+      {/* Контроллер камеры: следование за спутником */}
+      <CameraController
+        tleData={tleData}
+        orbitAltitudeKm={orbitAltitudeKm}
+        satelliteCount={satelliteCount}
+        controlsRef={controlsRef}
+      />
 
       {/* Освещение */}
       <ambientLight intensity={0.15} color="#8ec9ff" />
@@ -204,7 +289,7 @@ export function Scene3D({ positions, tleData, orbitPaths, satelliteConstellation
     <div className="absolute inset-0">
       <Canvas
         gl={{ antialias: true, alpha: false }}
-        style={{ background: '#030712' }}
+        style={{ background: '#050a18' }}
         dpr={[1, 2]}
       >
         <Suspense fallback={null}>

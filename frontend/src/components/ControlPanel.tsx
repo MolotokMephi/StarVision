@@ -15,6 +15,7 @@ const SPEED_PRESETS = [
   { label: '10×', value: 10 },
   { label: '50×', value: 50 },
   { label: '100×', value: 100 },
+  { label: '200×', value: 200 },
 ];
 
 export function ControlPanel() {
@@ -79,14 +80,14 @@ export function ControlPanel() {
         <input
           type="range"
           min={3}
-          max={15}
+          max={19}
           step={1}
           value={satelliteCount}
           onChange={(e) => setSatelliteCount(Number(e.target.value))}
         />
         <div className="flex justify-between text-[10px] text-star-700 font-mono mt-0.5">
           <span>3</span>
-          <span>15</span>
+          <span>19</span>
         </div>
       </div>
 
@@ -98,17 +99,26 @@ export function ControlPanel() {
             {orbitAltitudeKm === 0 ? 'реальные TLE' : `${orbitAltitudeKm} км`}
           </span>
         </label>
-        <input
-          type="range"
-          min={0}
-          max={2000}
-          step={50}
-          value={orbitAltitudeKm}
-          onChange={(e) => setOrbitAltitudeKm(Number(e.target.value))}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setOrbitAltitudeKm(0)}
+            className={`btn-star text-[10px] px-2 py-1 flex-shrink-0 ${orbitAltitudeKm === 0 ? 'active' : ''}`}
+          >
+            TLE
+          </button>
+          <input
+            type="range"
+            min={400}
+            max={2000}
+            step={50}
+            value={orbitAltitudeKm || 400}
+            onChange={(e) => setOrbitAltitudeKm(Number(e.target.value))}
+            className="flex-1"
+          />
+        </div>
         <div className="flex justify-between text-[10px] text-star-700 font-mono mt-0.5">
-          <span>TLE</span>
-          <span>400</span>
+          <span>400 км</span>
+          <span>1200</span>
           <span>2000 км</span>
         </div>
         {orbitAltitudeKm > 0 && (

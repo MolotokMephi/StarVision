@@ -113,13 +113,6 @@ export default function App() {
       <SatelliteInfoPanel satellites={satellites} positions={positions} />
       <StarAIChat />
 
-      {/* Bottom info */}
-      <div
-        className="absolute bottom-4 left-4 z-10 text-[9px] text-star-700 font-mono animate-fade-in"
-        style={{ animationDelay: '1s', animationFillMode: 'both' }}
-      >
-        StarGrid v1.1 · НЦКК · React Three Fiber · satellite.js · SGP4 · FastAPI
-      </div>
     </div>
   );
 }

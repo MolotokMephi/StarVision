@@ -56,6 +56,7 @@ export interface AppState {
   showLinks: boolean;
   selectedSatellite: number | null;
   focusedSatellite: number | null;
+  cameraFollowing: boolean;
   highlightedConstellation: string | null;
   activeConstellations: string[];
   satelliteCount: number;
@@ -76,6 +77,7 @@ export interface AppState {
   setShowLinks: (show: boolean) => void;
   selectSatellite: (id: number | null) => void;
   focusSatellite: (id: number | null) => void;
+  setCameraFollowing: (following: boolean) => void;
   highlightConstellation: (name: string | null) => void;
   toggleConstellation: (name: string) => void;
   setSatelliteCount: (count: number) => void;
