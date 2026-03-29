@@ -11,7 +11,7 @@ const EARTH_ROTATION_SPEED = (2 * Math.PI) / 86164;
 // NASA Blue Marble — апрель 2004, разрешение 2048×1024
 // Источник: NASA Earth Observatory / EOSDIS
 const EARTH_TEXTURE_URL =
-  'https://eoimages.gsfc.nasa.gov/images/imagerecords/74000/74393/world.200412.3x2048x1024.jpg';
+  '/textures/earth.jpg';
 
 interface EarthProps {
   timeSpeed: number;

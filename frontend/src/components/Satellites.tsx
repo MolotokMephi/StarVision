@@ -8,12 +8,13 @@
  */
 
 import { useRef, useMemo, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import {
   Mesh, Vector3, Group,
 } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
+import { getSimTime, advanceSimTime } from '../simClock';
 import type { SatellitePosition, OrbitPoint, TLEData } from '../types';
 
 const EARTH_RADIUS = 6371.0;
@@ -205,13 +206,14 @@ function SatMarker({
 }: SatMarkerProps) {
   const groupRef = useRef<Group>(null);
   const bodyRef = useRef<Group>(null);
+  const labelVisible = useRef(true);
 
   const color = useMemo(() => getColor(constellation), [constellation]);
   const modelType = useMemo(() => getModelType(constellation), [constellation]);
   const emissiveIntensity = isSelected ? 1.8 : isHighlighted ? 1.0 : 0.6;
   const glowScale = isSelected ? 0.07 : 0.04;
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     if (bodyRef.current) {
       bodyRef.current.rotation.y += 0.8 * delta;
     }
@@ -224,6 +226,23 @@ function SatMarker({
           -eci.y * SCALE
         );
       }
+    }
+    // Check if satellite is behind Earth (label occlusion)
+    if (groupRef.current) {
+      const satPos = groupRef.current.position;
+      const camPos = camera.position;
+      // Direction from camera to satellite
+      const dx = satPos.x - camPos.x;
+      const dy = satPos.y - camPos.y;
+      const dz = satPos.z - camPos.z;
+      const lenSq = dx * dx + dy * dy + dz * dz;
+      // Closest point on ray to Earth center (0,0,0)
+      const t = Math.max(0, Math.min(1, -(camPos.x * dx + camPos.y * dy + camPos.z * dz) / lenSq));
+      const cx = camPos.x + t * dx;
+      const cy = camPos.y + t * dy;
+      const cz = camPos.z + t * dz;
+      const distToCenter = Math.sqrt(cx * cx + cy * cy + cz * cz);
+      labelVisible.current = distToCenter >= 0.98; // Earth radius = 1 in scene units
     }
   });
 
@@ -247,12 +266,13 @@ function SatMarker({
         />
       </mesh>
 
-      {/* Подпись */}
+      {/* Подпись — hidden when behind Earth */}
       {showLabel && (
         <Html
           position={[0, 0.05, 0]}
           center
           distanceFactor={8}
+          occlude="raycast"
           style={{ pointerEvents: 'none' }}
         >
           <div className="sat-label" style={{ color }}>
@@ -286,6 +306,65 @@ function OrbitLine({ path, color, opacity = 0.3 }: OrbitLineProps) {
     });
     return arr;
   }, [path]);
+
+  return (
+    <line>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          array={positions}
+          count={positions.length / 3}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial color={color} transparent opacity={opacity} linewidth={1} />
+    </line>
+  );
+}
+
+// ── Виртуальный орбитальный трек ────────────────────────────────────
+function VirtualOrbitLine({
+  index,
+  total,
+  altitudeKm,
+  color,
+  opacity = 0.2,
+}: {
+  index: number;
+  total: number;
+  altitudeKm: number;
+  color: string;
+  opacity?: number;
+}) {
+  const positions = useMemo(() => {
+    const steps = 128;
+    const arr = new Float32Array(steps * 3);
+    const a = EARTH_RADIUS + altitudeKm;
+    const n = Math.sqrt(MU / (a * a * a));
+    const incl = (55 * Math.PI) / 180;
+    const raan = (index / total) * 2 * Math.PI;
+    const phase = (index / total) * 2 * Math.PI;
+    const period = (2 * Math.PI) / n;
+
+    for (let i = 0; i < steps; i++) {
+      const t = (i / steps) * period;
+      const M = n * t + phase;
+      const xOrb = a * Math.cos(M);
+      const yOrb = a * Math.sin(M);
+      const xInc = xOrb;
+      const yInc = yOrb * Math.cos(incl);
+      const zInc = yOrb * Math.sin(incl);
+      const cosR = Math.cos(raan);
+      const sinR = Math.sin(raan);
+      const x = xInc * cosR - yInc * sinR;
+      const y = xInc * sinR + yInc * cosR;
+      const z = zInc;
+      arr[i * 3] = x * SCALE;
+      arr[i * 3 + 1] = z * SCALE;
+      arr[i * 3 + 2] = -y * SCALE;
+    }
+    return arr;
+  }, [index, total, altitudeKm]);
 
   return (
     <line>
@@ -342,8 +421,6 @@ export function Satellites({
     satrec: ReturnType<typeof twoline2satrec>;
   }>>([]);
 
-  const simTimeRef = useRef(Date.now()); // мс с эпохи
-
   useEffect(() => {
     if (tleData.length > 0) {
       satrecsRef.current = tleData.map((tle) => ({
@@ -355,9 +432,9 @@ export function Satellites({
     }
   }, [tleData]);
 
-  // Advance simTime on each frame
+  // Advance shared simTime on each frame (single source of truth)
   useFrame((_, delta) => {
-    simTimeRef.current += delta * 1000 * timeSpeed;
+    advanceSimTime(delta * 1000 * timeSpeed);
   });
 
   // ── Фильтрация и выбор спутников ──────────────────────────────────
@@ -384,19 +461,20 @@ export function Satellites({
     return selectUniformly(filtered, satelliteCount);
   }, [positions, activeConstellations, satelliteConstellations, satelliteCount, orbitAltitudeKm]);
 
-  // Функция: получить текущую ECI-позицию для реального спутника через satellite.js
+  // Функция: получить текущую ECI-позицию для спутника через satellite.js / virtual orbit
   function makeGetECI(noradId: number) {
     return (): { x: number; y: number; z: number } | null => {
+      const simTime = getSimTime();
       // Режим виртуальный
       if (orbitAltitudeKm > 0) {
         const idx = noradId - 90000;
-        const eci = computeCircularOrbitECI(idx, virtualSatCount, orbitAltitudeKm, simTimeRef.current / 1000);
+        const eci = computeCircularOrbitECI(idx, virtualSatCount, orbitAltitudeKm, simTime / 1000);
         return eci;
       }
       // Режим реальных TLE через satellite.js
       const rec = satrecsRef.current.find((r) => r.norad_id === noradId);
       if (!rec) return null;
-      const pv = propagate(rec.satrec, new Date(simTimeRef.current));
+      const pv = propagate(rec.satrec, new Date(simTime));
       if (!pv.position || typeof pv.position === 'boolean') return null;
       return pv.position as { x: number; y: number; z: number };
     };
@@ -404,9 +482,10 @@ export function Satellites({
 
   // ── Начальные позиции (для первого рендера, пока нет клиентских данных)
   function getInitialPos(noradId: number): Vector3 {
+    const simTime = getSimTime();
     if (orbitAltitudeKm > 0) {
       const idx = noradId - 90000;
-      const eci = computeCircularOrbitECI(idx, Math.max(virtualSatCount, 1), orbitAltitudeKm, simTimeRef.current / 1000);
+      const eci = computeCircularOrbitECI(idx, Math.max(virtualSatCount, 1), orbitAltitudeKm, simTime / 1000);
       return new Vector3(eci.x * SCALE, eci.z * SCALE, -eci.y * SCALE);
     }
     const p = positions.find((pos) => pos.norad_id === noradId);
@@ -463,7 +542,7 @@ export function Satellites({
         );
       })}
 
-      {/* ── Орбитальные треки ─────────────────────────────── */}
+      {/* ── Орбитальные треки (реальные TLE) ────────────── */}
       {showOrbits && orbitAltitudeKm === 0 &&
         Object.entries(orbitPaths).map(([id, path]) => {
           const numId = parseInt(id);
@@ -478,6 +557,24 @@ export function Satellites({
               path={path}
               color={color}
               opacity={isActive ? 0.6 : 0.15}
+            />
+          );
+        })}
+
+      {/* ── Виртуальные орбитальные треки ─────────────── */}
+      {showOrbits && orbitAltitudeKm > 0 &&
+        virtualSatItems.map((sat) => {
+          const idx = sat.norad_id - 90000;
+          const color = getColor(sat.constellation);
+          const isActive = selectedSatellite === sat.norad_id;
+          return (
+            <VirtualOrbitLine
+              key={sat.norad_id}
+              index={idx}
+              total={satelliteCount}
+              altitudeKm={orbitAltitudeKm}
+              color={color}
+              opacity={isActive ? 0.6 : 0.2}
             />
           );
         })}

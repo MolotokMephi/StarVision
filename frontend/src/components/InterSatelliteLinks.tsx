@@ -9,6 +9,7 @@ import { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { BufferGeometry, LineBasicMaterial, Float32BufferAttribute, Group, Line } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
+import { getSimTime } from '../simClock';
 import { useStore } from '../hooks/useStore';
 import type { TLEData } from '../types';
 
@@ -97,12 +98,10 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     satelliteCount,
     activeConstellations,
     orbitAltitudeKm,
-    timeSpeed,
     setActiveLinksCount,
   } = useStore();
 
   const groupRef = useRef<Group>(null);
-  const simTimeRef = useRef(Date.now());
   const prevLinksRef = useRef(0);
 
   // Предварительно создаём satrec-объекты из TLE
@@ -124,10 +123,10 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     }
   }, [tleData]);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!groupRef.current) return;
 
-    simTimeRef.current += delta * 1000 * timeSpeed;
+    const simTime = getSimTime();
 
     // Очищаем предыдущие линии
     while (groupRef.current.children.length > 0) {
@@ -147,11 +146,11 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
 
     if (orbitAltitudeKm > 0) {
       // Режим виртуальных круговых орбит
-      const virt = computeVirtualPositions(satelliteCount, orbitAltitudeKm, simTimeRef.current);
+      const virt = computeVirtualPositions(satelliteCount, orbitAltitudeKm, simTime);
       eciPositions = virt.map((p, i) => ({ norad_id: 90000 + i, ...p }));
     } else if (satrecsRef.current.length > 0) {
       // Клиентская SGP4-пропагация
-      const now = new Date(simTimeRef.current);
+      const now = new Date(simTime);
       const filtered = satrecsRef.current.filter(({ norad_id, constellation }) => {
         const c = constellation || satelliteConstellations[norad_id];
         return activeConstellations.includes(c);
