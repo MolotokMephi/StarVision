@@ -137,6 +137,7 @@ interface SatellitesProps {
   showLabels: boolean;
   onSelectSatellite: (id: number | null) => void;
   satelliteConstellations: Record<number, string>;
+  satelliteCount: number;
 }
 
 export function Satellites({
@@ -149,13 +150,16 @@ export function Satellites({
   showLabels,
   onSelectSatellite,
   satelliteConstellations,
+  satelliteCount,
 }: SatellitesProps) {
   const filteredPositions = useMemo(
-    () => positions.filter((p) => {
-      const c = satelliteConstellations[p.norad_id];
-      return activeConstellations.includes(c);
-    }),
-    [positions, activeConstellations, satelliteConstellations]
+    () => positions
+      .filter((p) => {
+        const c = satelliteConstellations[p.norad_id];
+        return activeConstellations.includes(c);
+      })
+      .slice(0, satelliteCount),
+    [positions, activeConstellations, satelliteConstellations, satelliteCount]
   );
 
   return (
@@ -187,6 +191,7 @@ export function Satellites({
           const numId = parseInt(id);
           const constellation = satelliteConstellations[numId] || '';
           if (!activeConstellations.includes(constellation)) return null;
+          if (!filteredPositions.some((p) => p.norad_id === numId)) return null;
           const color = getColor(constellation);
           const isActive = selectedSatellite === numId;
           return (

@@ -56,6 +56,7 @@ export interface AppState {
   focusedSatellite: number | null;
   highlightedConstellation: string | null;
   activeConstellations: string[];
+  satelliteCount: number;
 
   // StarAI
   chatOpen: boolean;
@@ -71,6 +72,7 @@ export interface AppState {
   focusSatellite: (id: number | null) => void;
   highlightConstellation: (name: string | null) => void;
   toggleConstellation: (name: string) => void;
+  setSatelliteCount: (count: number) => void;
   setChatOpen: (open: boolean) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatLoading: (loading: boolean) => void;

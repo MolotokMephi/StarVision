@@ -18,6 +18,7 @@ export const useStore = create<AppState>((set) => ({
   focusedSatellite: null,
   highlightedConstellation: null,
   activeConstellations: [...ALL_CONSTELLATIONS],
+  satelliteCount: 14,
 
   // Chat
   chatOpen: false,
@@ -38,6 +39,7 @@ export const useStore = create<AppState>((set) => ({
         ? state.activeConstellations.filter((c) => c !== name)
         : [...state.activeConstellations, name],
     })),
+  setSatelliteCount: (count) => set({ satelliteCount: count }),
   setChatOpen: (open) => set({ chatOpen: open }),
   addChatMessage: (msg) =>
     set((state) => ({ chatMessages: [...state.chatMessages, msg] })),
@@ -55,5 +57,6 @@ export const useStore = create<AppState>((set) => ({
       showOrbits: true,
       showLabels: true,
       activeConstellations: [...ALL_CONSTELLATIONS],
+      satelliteCount: 14,
     }),
 }));

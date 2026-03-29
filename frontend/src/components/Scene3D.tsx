@@ -77,6 +77,7 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
     selectedSatellite,
     highlightedConstellation,
     activeConstellations,
+    satelliteCount,
     selectSatellite,
   } = useStore();
 
@@ -120,6 +121,7 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
         showLabels={showLabels}
         onSelectSatellite={selectSatellite}
         satelliteConstellations={satelliteConstellations}
+        satelliteCount={satelliteCount}
       />
     </>
   );
