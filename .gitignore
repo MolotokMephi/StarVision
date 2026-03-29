@@ -1,6 +1,19 @@
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+venv/
 .env
-.DS_Store
-*.log
+
+# Node
+node_modules/
 dist/
-.cache/
+.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
