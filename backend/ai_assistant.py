@@ -8,6 +8,7 @@ import os
 from typing import Dict, Any, List, Optional
 
 import httpx
+import logging
 
 # Anthropic API (через HTTP, без SDK — для простоты)
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
@@ -101,9 +102,11 @@ async def ask_starai(
         except json.JSONDecodeError:
             return {"message": text, "actions": []}
 
-    except Exception as e:
+    except Exception:
+        # Логируем подробности ошибки на сервере, не раскрывая их пользователю
+        logging.exception("Ошибка соединения с StarAI")
         return {
-            "message": f"Ошибка соединения с StarAI: {str(e)}. Работаю в офлайн-режиме.",
+            "message": "Ошибка соединения с StarAI. Работаю в офлайн-режиме.",
             "actions": [],
         }
 
