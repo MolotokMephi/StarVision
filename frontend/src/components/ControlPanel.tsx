@@ -23,6 +23,7 @@ export function ControlPanel() {
     showOrbits, setShowOrbits,
     showLabels, setShowLabels,
     activeConstellations, toggleConstellation,
+    satelliteCount, setSatelliteCount,
     resetView,
   } = useStore();
 
@@ -65,6 +66,25 @@ export function ControlPanel() {
           onChange={(e) => setTimeSpeed(Number(e.target.value))}
           className="mt-2"
         />
+      </div>
+
+      {/* Количество спутников */}
+      <div className="mb-4">
+        <label className="block text-xs text-star-400 font-mono mb-2">
+          Количество спутников: {satelliteCount}
+        </label>
+        <input
+          type="range"
+          min={3}
+          max={15}
+          step={1}
+          value={satelliteCount}
+          onChange={(e) => setSatelliteCount(Number(e.target.value))}
+        />
+        <div className="flex justify-between text-[10px] text-star-700 font-mono mt-0.5">
+          <span>3</span>
+          <span>15</span>
+        </div>
       </div>
 
       {/* Переключатели */}
