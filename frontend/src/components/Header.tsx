@@ -4,9 +4,10 @@ interface HeaderProps {
   satelliteCount: number;
   activeCount: number;
   timeSpeed: number;
+  activeLinksCount: number;
 }
 
-export function Header({ satelliteCount, activeCount, timeSpeed }: HeaderProps) {
+export function Header({ satelliteCount, activeCount, timeSpeed, activeLinksCount }: HeaderProps) {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -44,6 +45,12 @@ export function Header({ satelliteCount, activeCount, timeSpeed }: HeaderProps) 
           <StatusItem label="КА" value={`${activeCount}/${satelliteCount}`} />
           <Divider />
           <StatusItem label="Скорость" value={`${timeSpeed}×`} />
+          <Divider />
+          <StatusItem
+            label="МСС"
+            value={`${activeLinksCount}`}
+            valueClass={activeLinksCount > 0 ? 'text-green-400' : 'text-star-600'}
+          />
           <Divider />
           <StatusItem
             label="Статус"

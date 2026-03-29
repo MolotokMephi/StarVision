@@ -129,6 +129,72 @@ async def get_elements(norad_id: int):
     return get_orbital_elements(sat)
 
 
+# ── Эндпоинт: Межспутниковые связи ────────────────────────────────
+@app.get("/api/links")
+async def get_links(
+    comm_range_km: float = Query(default=500.0, ge=50.0, le=5000.0),
+    timestamp: Optional[str] = None,
+):
+    """
+    Расчёт межспутниковых связей (ISL).
+    Возвращает все пары спутников с расстоянием и статусом связи.
+    ?comm_range_km=500 — порог дальности (км)
+    ?timestamp=... — момент расчёта (по умолчанию текущий UTC)
+    """
+    import math
+
+    dt = None
+    if timestamp:
+        try:
+            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Неверный формат timestamp")
+
+    positions = propagate_all(dt)
+
+    def has_los(p1, p2):
+        """Проверка прямой видимости (линии связи не пересекает Землю)."""
+        R = 6371.0
+        ax, ay, az = p1["eci"]["x"], p1["eci"]["y"], p1["eci"]["z"]
+        bx, by, bz = p2["eci"]["x"], p2["eci"]["y"], p2["eci"]["z"]
+        dx, dy, dz = bx - ax, by - ay, bz - az
+        len_sq = dx * dx + dy * dy + dz * dz
+        if len_sq == 0:
+            return True
+        t = max(0.0, min(1.0, -(ax * dx + ay * dy + az * dz) / len_sq))
+        cx, cy, cz = ax + t * dx, ay + t * dy, az + t * dz
+        return (cx * cx + cy * cy + cz * cz) >= R * R
+
+    links = []
+    for i in range(len(positions)):
+        for j in range(i + 1, len(positions)):
+            p1, p2 = positions[i], positions[j]
+            dx = p1["eci"]["x"] - p2["eci"]["x"]
+            dy = p1["eci"]["y"] - p2["eci"]["y"]
+            dz = p1["eci"]["z"] - p2["eci"]["z"]
+            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+            los = has_los(p1, p2)
+            connected = dist <= comm_range_km and los
+            links.append({
+                "norad_id_1": p1["norad_id"],
+                "norad_id_2": p2["norad_id"],
+                "name_1": p1["name"],
+                "name_2": p2["name"],
+                "distance_km": round(dist, 2),
+                "los": los,
+                "connected": connected,
+            })
+
+    active_count = sum(1 for lnk in links if lnk["connected"])
+    return {
+        "links": links,
+        "active_count": active_count,
+        "total_pairs": len(links),
+        "comm_range_km": comm_range_km,
+        "timestamp": (dt or datetime.now(timezone.utc)).isoformat(),
+    }
+
+
 # ── Эндпоинт: StarAI ───────────────────────────────────────────────
 @app.post("/api/starai/chat")
 async def starai_chat(req: ChatRequest):

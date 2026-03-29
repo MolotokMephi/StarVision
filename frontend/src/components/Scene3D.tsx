@@ -1,10 +1,12 @@
-import { Suspense, useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Suspense, useRef, useMemo, useEffect } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera } from '@react-three/drei';
+import { Vector3 } from 'three';
 import { Earth } from './Earth';
 import { Satellites } from './Satellites';
+import { InterSatelliteLinks } from './InterSatelliteLinks';
 import { useStore } from '../hooks/useStore';
-import type { SatellitePosition, OrbitPoint } from '../types';
+import type { SatellitePosition, OrbitPoint, TLEData } from '../types';
 
 // ── Сетка координат (экватор + меридианы) ───────────────────────────
 function CoordinateGrid() {
@@ -62,14 +64,61 @@ function CoordinateGrid() {
   );
 }
 
+// ── Контроллер камеры: плавный lerp к выбранному спутнику ───────────
+interface CameraControllerProps {
+  positions: SatellitePosition[];
+}
+
+function CameraController({ positions }: CameraControllerProps) {
+  const { camera } = useThree();
+  const { focusedSatellite, selectedSatellite } = useStore();
+
+  const targetRef = useRef<Vector3 | null>(null);
+  const isAnimatingRef = useRef(false);
+
+  // Когда выбирают спутник — задаём цель для камеры
+  useEffect(() => {
+    const id = focusedSatellite ?? selectedSatellite;
+    if (id == null) {
+      targetRef.current = null;
+      isAnimatingRef.current = false;
+      return;
+    }
+    const pos = positions.find((p) => p.norad_id === id);
+    if (!pos) return;
+
+    const SCALE = 1 / 6371;
+    const target = new Vector3(
+      pos.eci.x * SCALE,
+      pos.eci.z * SCALE,
+      -pos.eci.y * SCALE
+    );
+    // Камера встаёт чуть дальше от Земли, в направлении спутника
+    const camTarget = target.clone().normalize().multiplyScalar(target.length() + 1.2);
+    targetRef.current = camTarget;
+    isAnimatingRef.current = true;
+  }, [focusedSatellite, selectedSatellite, positions]);
+
+  useFrame(() => {
+    if (!isAnimatingRef.current || !targetRef.current) return;
+    camera.position.lerp(targetRef.current, 0.04);
+    if (camera.position.distanceTo(targetRef.current) < 0.01) {
+      isAnimatingRef.current = false;
+    }
+  });
+
+  return null;
+}
+
 // ── Основная 3D-сцена ───────────────────────────────────────────────
 interface SceneContentProps {
   positions: SatellitePosition[];
+  tleData: TLEData[];
   orbitPaths: Record<number, OrbitPoint[]>;
   satelliteConstellations: Record<number, string>;
 }
 
-function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneContentProps) {
+function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations }: SceneContentProps) {
   const {
     timeSpeed,
     showOrbits,
@@ -78,6 +127,9 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
     highlightedConstellation,
     activeConstellations,
     satelliteCount,
+    orbitAltitudeKm,
+    commRangeKm,
+    showLinks,
     selectSatellite,
   } = useStore();
 
@@ -95,6 +147,9 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
         dampingFactor={0.05}
       />
 
+      {/* Контроллер камеры: lerp к спутнику */}
+      <CameraController positions={positions} />
+
       {/* Освещение */}
       <ambientLight intensity={0.15} color="#8ec9ff" />
       <directionalLight position={[5, 3, 5]} intensity={1.2} color="#ffffff" />
@@ -104,7 +159,7 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
       {/* Звёзды */}
       <Stars radius={100} depth={80} count={4000} factor={3} saturation={0.1} fade speed={0.5} />
 
-      {/* Земля */}
+      {/* Земля с NASA Blue Marble */}
       <Earth timeSpeed={timeSpeed} />
 
       {/* Координатная сетка */}
@@ -113,6 +168,7 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
       {/* Спутники */}
       <Satellites
         positions={positions}
+        tleData={tleData}
         orbitPaths={orbitPaths}
         selectedSatellite={selectedSatellite}
         highlightedConstellation={highlightedConstellation}
@@ -122,6 +178,14 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
         onSelectSatellite={selectSatellite}
         satelliteConstellations={satelliteConstellations}
         satelliteCount={satelliteCount}
+        orbitAltitudeKm={orbitAltitudeKm}
+        timeSpeed={timeSpeed}
+      />
+
+      {/* Межспутниковые линии связи */}
+      <InterSatelliteLinks
+        tleData={tleData}
+        satelliteConstellations={satelliteConstellations}
       />
     </>
   );
@@ -130,11 +194,12 @@ function SceneContent({ positions, orbitPaths, satelliteConstellations }: SceneC
 // ── Экспортируемый Canvas ───────────────────────────────────────────
 interface Scene3DProps {
   positions: SatellitePosition[];
+  tleData: TLEData[];
   orbitPaths: Record<number, OrbitPoint[]>;
   satelliteConstellations: Record<number, string>;
 }
 
-export function Scene3D({ positions, orbitPaths, satelliteConstellations }: Scene3DProps) {
+export function Scene3D({ positions, tleData, orbitPaths, satelliteConstellations }: Scene3DProps) {
   return (
     <div className="absolute inset-0">
       <Canvas
@@ -145,6 +210,7 @@ export function Scene3D({ positions, orbitPaths, satelliteConstellations }: Scen
         <Suspense fallback={null}>
           <SceneContent
             positions={positions}
+            tleData={tleData}
             orbitPaths={orbitPaths}
             satelliteConstellations={satelliteConstellations}
           />

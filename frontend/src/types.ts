@@ -46,17 +46,22 @@ export interface AppState {
   satellites: SatelliteData[];
   positions: SatellitePosition[];
   orbitPaths: Record<number, OrbitPoint[]>;
+  tleData: TLEData[];
 
   // Управление
   timeSpeed: number;
   showOrbits: boolean;
   showLabels: boolean;
   showCoverage: boolean;
+  showLinks: boolean;
   selectedSatellite: number | null;
   focusedSatellite: number | null;
   highlightedConstellation: string | null;
   activeConstellations: string[];
   satelliteCount: number;
+  orbitAltitudeKm: number;   // 0 = используются реальные TLE; >0 = виртуальные круговые орбиты
+  commRangeKm: number;       // порог дальности связи (50–2000 км)
+  activeLinksCount: number;  // текущее количество активных МСС
 
   // StarAI
   chatOpen: boolean;
@@ -68,17 +73,22 @@ export interface AppState {
   setShowOrbits: (show: boolean) => void;
   setShowLabels: (show: boolean) => void;
   setShowCoverage: (show: boolean) => void;
+  setShowLinks: (show: boolean) => void;
   selectSatellite: (id: number | null) => void;
   focusSatellite: (id: number | null) => void;
   highlightConstellation: (name: string | null) => void;
   toggleConstellation: (name: string) => void;
   setSatelliteCount: (count: number) => void;
+  setOrbitAltitudeKm: (km: number) => void;
+  setCommRangeKm: (km: number) => void;
+  setActiveLinksCount: (count: number) => void;
   setChatOpen: (open: boolean) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatLoading: (loading: boolean) => void;
   setSatellites: (sats: SatelliteData[]) => void;
   setPositions: (pos: SatellitePosition[]) => void;
   setOrbitPath: (id: number, path: OrbitPoint[]) => void;
+  setTleData: (data: TLEData[]) => void;
   resetView: () => void;
 }
 
