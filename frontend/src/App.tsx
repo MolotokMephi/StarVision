@@ -5,15 +5,17 @@ import { SatelliteInfoPanel } from './components/SatelliteInfoPanel';
 import { StarAIChat } from './components/StarAIChat';
 import { Header } from './components/Header';
 import { useStore } from './hooks/useStore';
-import { fetchSatellites, fetchPositions, fetchOrbitPath } from './services/api';
+import { fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE } from './services/api';
 
 export default function App() {
   const {
     satellites, setSatellites,
     positions, setPositions,
     orbitPaths, setOrbitPath,
+    tleData, setTleData,
     timeSpeed,
     selectedSatellite,
+    activeLinksCount,
   } = useStore();
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -25,7 +27,14 @@ export default function App() {
       .catch(console.error);
   }, []);
 
-  // Загрузка позиций (периодическая)
+  // Загрузка TLE для клиентской SGP4
+  useEffect(() => {
+    fetchTLE()
+      .then((res) => setTleData(res.tle_data))
+      .catch(console.error);
+  }, []);
+
+  // Загрузка позиций (периодическая — резервная для fallback и info panel)
   const loadPositions = useCallback(async () => {
     try {
       const res = await fetchPositions();
@@ -37,8 +46,8 @@ export default function App() {
 
   useEffect(() => {
     loadPositions();
-    // Интервал обновления зависит от скорости симуляции
-    const ms = Math.max(500, 2000 / timeSpeed);
+    // Медленный поллинг — клиентская SGP4 даёт плавную анимацию
+    const ms = Math.max(2000, 5000 / timeSpeed);
     intervalRef.current = setInterval(loadPositions, ms);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -64,7 +73,7 @@ export default function App() {
               .then((res) => setOrbitPath(res.norad_id, res.path))
               .catch(console.error);
           }
-        }, i * 200); // stagger requests
+        }, i * 200);
       });
     }
   }, [satellites]);
@@ -86,6 +95,7 @@ export default function App() {
       {/* 3D Canvas */}
       <Scene3D
         positions={positions}
+        tleData={tleData}
         orbitPaths={orbitPaths}
         satelliteConstellations={satelliteConstellations}
       />
@@ -95,6 +105,7 @@ export default function App() {
         satelliteCount={satellites.length}
         activeCount={activeCount}
         timeSpeed={timeSpeed}
+        activeLinksCount={activeLinksCount}
       />
 
       {/* UI Panels */}
@@ -103,8 +114,11 @@ export default function App() {
       <StarAIChat />
 
       {/* Bottom info */}
-      <div className="absolute bottom-4 left-4 z-10 text-[9px] text-star-700 font-mono animate-fade-in" style={{ animationDelay: '1s', animationFillMode: 'both' }}>
-        StarGrid v1.0 · НЦКК · React Three Fiber · SGP4 · FastAPI
+      <div
+        className="absolute bottom-4 left-4 z-10 text-[9px] text-star-700 font-mono animate-fade-in"
+        style={{ animationDelay: '1s', animationFillMode: 'both' }}
+      >
+        StarGrid v1.1 · НЦКК · React Three Fiber · satellite.js · SGP4 · FastAPI
       </div>
     </div>
   );

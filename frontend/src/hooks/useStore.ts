@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AppState, SatelliteData, SatellitePosition, OrbitPoint, ChatMessage } from '../types';
+import type { AppState, SatelliteData, SatellitePosition, OrbitPoint, ChatMessage, TLEData } from '../types';
 
 const ALL_CONSTELLATIONS = ['Сфера', 'Гонец', 'Образовательные', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
 
@@ -8,17 +8,22 @@ export const useStore = create<AppState>((set) => ({
   satellites: [],
   positions: [],
   orbitPaths: {},
+  tleData: [],
 
   // Controls
   timeSpeed: 1,
   showOrbits: true,
   showLabels: true,
   showCoverage: false,
+  showLinks: false,
   selectedSatellite: null,
   focusedSatellite: null,
   highlightedConstellation: null,
   activeConstellations: [...ALL_CONSTELLATIONS],
   satelliteCount: 14,
+  orbitAltitudeKm: 0,
+  commRangeKm: 500,
+  activeLinksCount: 0,
 
   // Chat
   chatOpen: false,
@@ -30,6 +35,7 @@ export const useStore = create<AppState>((set) => ({
   setShowOrbits: (show) => set({ showOrbits: show }),
   setShowLabels: (show) => set({ showLabels: show }),
   setShowCoverage: (show) => set({ showCoverage: show }),
+  setShowLinks: (show) => set({ showLinks: show }),
   selectSatellite: (id) => set({ selectedSatellite: id }),
   focusSatellite: (id) => set({ focusedSatellite: id, selectedSatellite: id }),
   highlightConstellation: (name) => set({ highlightedConstellation: name }),
@@ -40,6 +46,9 @@ export const useStore = create<AppState>((set) => ({
         : [...state.activeConstellations, name],
     })),
   setSatelliteCount: (count) => set({ satelliteCount: count }),
+  setOrbitAltitudeKm: (km) => set({ orbitAltitudeKm: km }),
+  setCommRangeKm: (km) => set({ commRangeKm: km }),
+  setActiveLinksCount: (count) => set({ activeLinksCount: count }),
   setChatOpen: (open) => set({ chatOpen: open }),
   addChatMessage: (msg) =>
     set((state) => ({ chatMessages: [...state.chatMessages, msg] })),
@@ -48,6 +57,7 @@ export const useStore = create<AppState>((set) => ({
   setPositions: (pos) => set({ positions: pos }),
   setOrbitPath: (id, path) =>
     set((state) => ({ orbitPaths: { ...state.orbitPaths, [id]: path } })),
+  setTleData: (data) => set({ tleData: data }),
   resetView: () =>
     set({
       selectedSatellite: null,
@@ -56,7 +66,10 @@ export const useStore = create<AppState>((set) => ({
       timeSpeed: 1,
       showOrbits: true,
       showLabels: true,
+      showLinks: false,
       activeConstellations: [...ALL_CONSTELLATIONS],
       satelliteCount: 14,
+      orbitAltitudeKm: 0,
+      commRangeKm: 500,
     }),
 }));

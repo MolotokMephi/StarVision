@@ -110,12 +110,45 @@ stargrid/
 | ИИ-ассистент | Anthropic Claude API |
 | Bundler | Vite |
 
+## 📚 Источники данных
+
+### TLE (Two-Line Element) орбитальные данные
+- **CelesTrak** — https://celestrak.org/SOCRATES/ — актуальные TLE для российских КА
+  - Гонец-М: NORAD IDs 40553, 40554, 40555
+  - Аист-2Т: NORAD ID 55121
+  - Зоркий-2М: NORAD ID 48850
+  - Беркут-С: NORAD ID 55120
+- **Space-Track.org** — https://www.space-track.org — официальная база данных US Space Force
+- **Roscosmos** — https://www.roscosmos.ru — данные о российских группировках
+
+### Орбитальная механика
+- **SGP4 модель** — Hoots & Roehrich (1980), реализация: `python-sgp4` v2.23 (MIT License)
+- **satellite.js** — https://github.com/shashwatak/satellite-js — клиентская SGP4 для браузера (v5.0, MIT License)
+- **WGS72 эллипсоид** — используется для координатных преобразований
+
+### Текстуры Земли
+- **NASA Blue Marble** — «World, April» (NASA Earth Observatory / EOSDIS)
+  - URL: https://eoimages.gsfc.nasa.gov/images/imagerecords/74000/74393/
+  - Авторы: Reto Stöckli, NASA Earth Observatory
+  - Лицензия: открытые данные NASA (https://www.nasa.gov/multimedia/guidelines/index.html)
+
+### 3D-модели спутников
+- **Процедурные модели** — разработаны в Three.js (BoxGeometry + PlaneGeometry)
+  - Тип 1: 1U CubeSat (10×10×10 см), 2 солнечные панели
+  - Тип 2: 3U CubeSat (10×10×30 см), 4 солнечные панели
+  - Источник моделирования: собственная реализация (код открыт)
+- **Справочник по конструкции**: CubeSat Design Specification Rev. 14 — https://www.cubesat.org/
+
+### Открытые библиотеки
+- **Three.js / React Three Fiber** — https://threejs.org, MIT License
+- **Tailwind CSS** — https://tailwindcss.com, MIT License
+- **Zustand** — https://github.com/pmndrs/zustand, MIT License
+- **FastAPI** — https://fastapi.tiangolo.com, MIT License
+
 ## 📚 Использованные ресурсы
 
-- **LROC** (lroc.sese.asu.edu) — данные о Луне
 - **NASA 3D Resources** — модели КА
 - **GrabCAD** — проекты кубсатов
 - **CelesTrak** — TLE-данные
 - **SGP4** — модель пропагации
 - **Three.js / R3F** — 3D-визуализация
-- **CesiumJS** — справочник по планетарному масштабу
