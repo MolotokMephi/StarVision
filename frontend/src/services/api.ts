@@ -1,5 +1,5 @@
 /**
- * api.ts — Сервис взаимодействия с StarGrid Backend.
+ * api.ts — Сервис взаимодействия с StarVision Backend.
  */
 
 import type {

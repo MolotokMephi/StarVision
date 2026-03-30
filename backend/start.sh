@@ -1,7 +1,7 @@
 #!/bin/bash
-# StarGrid Backend — Start Script
+# StarVision Backend — Start Script
 
-echo "⭐ StarGrid Backend"
+echo "⭐ StarVision Backend"
 echo "==================="
 
 cd "$(dirname "$0")"

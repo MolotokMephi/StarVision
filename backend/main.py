@@ -1,5 +1,5 @@
 """
-main.py — StarGrid Backend (FastAPI)
+main.py — StarVision Backend (FastAPI)
 Цифровой двойник группировки российских кубсатов.
 """
 
@@ -17,7 +17,7 @@ from ai_assistant import ask_starai
 
 # ── Приложение ──────────────────────────────────────────────────────
 app = FastAPI(
-    title="StarGrid API",
+    title="StarVision API",
     description="API цифрового двойника группировки российских кубсатов",
     version="1.0.0",
 )
@@ -53,7 +53,7 @@ class SimulationParams(BaseModel):
 @app.get("/")
 async def root():
     return {
-        "project": "StarGrid",
+        "project": "StarVision",
         "version": "1.0.0",
         "description": "Цифровой двойник группировки российских кубсатов",
     }

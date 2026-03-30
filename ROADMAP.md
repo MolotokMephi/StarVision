@@ -1,4 +1,4 @@
-# ROADMAP — СФЕРА-КС
+# ROADMAP — StarVision
 
 > Обновлено 30.03.2026
 

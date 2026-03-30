@@ -24,13 +24,13 @@ export function Header({ satelliteCount, activeCount, timeSpeed, activeLinksCoun
         <div className="pointer-events-auto flex items-center gap-3 ml-4">
           <div className="relative">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-star-500 via-star-600 to-star-800 flex items-center justify-center shadow-lg shadow-star-600/30">
-              <span className="text-white font-display font-extrabold text-sm">СК</span>
+              <span className="text-white font-display font-extrabold text-sm">SV</span>
             </div>
             <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border border-void-900" />
           </div>
           <div>
             <h1 className="font-display font-bold text-star-100 text-sm tracking-wide">
-              СФЕРА-КС
+              StarVision
             </h1>
             <p className="text-[9px] text-star-500 font-mono tracking-wider">
               ЦИФРОВОЙ ДВОЙНИК ГРУППИРОВКИ
