@@ -242,7 +242,7 @@ function SatMarker({
       const cy = camPos.y + t * dy;
       const cz = camPos.z + t * dz;
       const distToCenter = Math.sqrt(cx * cx + cy * cy + cz * cz);
-      labelVisible.current = distToCenter >= 0.98; // Earth radius = 1 in scene units
+      labelVisible.current = distToCenter >= 0.95; // Earth radius = 1 in scene units, slightly lenient
     }
   });
 
@@ -266,13 +266,12 @@ function SatMarker({
         />
       </mesh>
 
-      {/* Подпись — hidden when behind Earth */}
-      {showLabel && (
+      {/* Подпись — hidden when behind Earth via manual occlusion check */}
+      {showLabel && labelVisible.current && (
         <Html
           position={[0, 0.05, 0]}
           center
           distanceFactor={8}
-          occlude="raycast"
           style={{ pointerEvents: 'none' }}
         >
           <div className="sat-label" style={{ color }}>

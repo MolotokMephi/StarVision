@@ -98,10 +98,11 @@ interface CameraControllerProps {
 
 function CameraController({ tleData, orbitAltitudeKm, satelliteCount, controlsRef }: CameraControllerProps) {
   const { camera } = useThree();
-  const { focusedSatellite, selectedSatellite, cameraFollowing, setCameraFollowing } = useStore();
+  const { focusedSatellite, selectedSatellite, cameraFollowing, setCameraFollowing, selectSatellite } = useStore();
   const prevDistRef = useRef<number>(0);
   const isAnimatingRef = useRef(false);
   const offsetRef = useRef(new Vector3(0, 0.3, 0.8));
+  const prevCamRotRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
 
   const satrecsRef = useRef<Record<number, ReturnType<typeof twoline2satrec>>>({});
 
@@ -136,22 +137,35 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, controlsRe
       isAnimatingRef.current = false;
       return;
     }
-    isAnimatingRef.current = true;
-    prevDistRef.current = camera.position.length();
-  }, [focusedSatellite, selectedSatellite]);
+    if (cameraFollowing) {
+      isAnimatingRef.current = true;
+      prevDistRef.current = camera.position.length();
+      prevCamRotRef.current = { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z };
+    }
+  }, [focusedSatellite]);
 
   useFrame(() => {
     const id = cameraFollowing ? (focusedSatellite ?? selectedSatellite) : null;
 
-    // Detect user zoom-out to break follow
+    // Detect user interaction to break follow: zoom-out or significant rotation
     if (cameraFollowing && id != null) {
       const currentDist = camera.position.length();
+      // Zoom-out detection
       if (prevDistRef.current > 0 && currentDist > prevDistRef.current + 0.3) {
         setCameraFollowing(false);
         isAnimatingRef.current = false;
         return;
       }
+      // Rotation detection — significant user drag breaks follow
+      const rotDelta = Math.abs(camera.rotation.x - prevCamRotRef.current.x)
+        + Math.abs(camera.rotation.y - prevCamRotRef.current.y);
+      if (!isAnimatingRef.current && rotDelta > 0.15) {
+        setCameraFollowing(false);
+        isAnimatingRef.current = false;
+        return;
+      }
       prevDistRef.current = currentDist;
+      prevCamRotRef.current = { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z };
     }
 
     if (!isAnimatingRef.current && !cameraFollowing) return;
@@ -174,6 +188,7 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, controlsRe
       }
       if (camera.position.distanceTo(camTarget) < 0.05) {
         isAnimatingRef.current = false;
+        prevCamRotRef.current = { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z };
       }
     } else if (cameraFollowing) {
       // Continuous follow — smooth tracking
@@ -236,10 +251,11 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
       />
 
       {/* Освещение */}
-      <ambientLight intensity={0.15} color="#8ec9ff" />
-      <directionalLight position={[5, 3, 5]} intensity={1.2} color="#ffffff" />
-      <directionalLight position={[-3, -1, -3]} intensity={0.3} color="#3389ff" />
-      <pointLight position={[0, 0, 0]} intensity={0.1} color="#3389ff" distance={10} />
+      <ambientLight intensity={0.35} color="#a8d4ff" />
+      <directionalLight position={[5, 3, 5]} intensity={1.8} color="#ffffff" />
+      <directionalLight position={[-3, -1, -3]} intensity={0.5} color="#5599dd" />
+      <directionalLight position={[0, 5, -3]} intensity={0.4} color="#ffffff" />
+      <pointLight position={[0, 0, 0]} intensity={0.15} color="#5599dd" distance={10} />
 
       {/* Звёзды */}
       <Stars radius={100} depth={80} count={4000} factor={3} saturation={0.1} fade speed={0.5} />

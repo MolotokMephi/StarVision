@@ -21,16 +21,16 @@ export function Header({ satelliteCount, activeCount, timeSpeed, activeLinksCoun
     <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
       <div className="flex items-center justify-between px-4 py-3">
         {/* Логотип */}
-        <div className="pointer-events-auto flex items-center gap-3" style={{ marginLeft: '300px' }}>
+        <div className="pointer-events-auto flex items-center gap-3 ml-4">
           <div className="relative">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-star-500 via-star-600 to-star-800 flex items-center justify-center shadow-lg shadow-star-600/30">
-              <span className="text-white font-display font-extrabold text-sm">SG</span>
+              <span className="text-white font-display font-extrabold text-sm">СК</span>
             </div>
             <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-400 border border-void-900" />
           </div>
           <div>
             <h1 className="font-display font-bold text-star-100 text-sm tracking-wide">
-              StarGrid
+              СФЕРА-КС
             </h1>
             <p className="text-[9px] text-star-500 font-mono tracking-wider">
               ЦИФРОВОЙ ДВОЙНИК ГРУППИРОВКИ
@@ -38,8 +38,10 @@ export function Header({ satelliteCount, activeCount, timeSpeed, activeLinksCoun
           </div>
         </div>
 
+        <div className="flex-1" />
+
         {/* Статус-бар */}
-        <div className="pointer-events-auto flex items-center gap-4 glass-panel px-4 py-2" style={{ marginRight: '340px' }}>
+        <div className="pointer-events-auto flex items-center gap-4 glass-panel px-4 py-2 mr-4">
           <StatusItem label="UTC" value={utcStr} />
           <Divider />
           <StatusItem label="КА" value={`${activeCount}/${satelliteCount}`} />
