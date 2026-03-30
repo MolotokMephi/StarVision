@@ -12,7 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from satellites import get_all_satellites, get_satellite_by_id, get_tle_data
-from orbital import propagate_all, propagate_satellite, propagate_orbit_path, get_orbital_elements
+from orbital import (
+    propagate_all, propagate_satellite, propagate_orbit_path,
+    get_orbital_elements, predict_collisions, optimize_plane_distribution,
+)
 from ai_assistant import ask_starai
 
 # ── Приложение ──────────────────────────────────────────────────────
@@ -62,7 +65,8 @@ async def root():
 @app.get("/api/satellites")
 async def list_satellites():
     """Список всех спутников с метаданными."""
-    return {"satellites": get_all_satellites(), "count": len(get_all_satellites())}
+    sats = get_all_satellites()
+    return {"satellites": sats, "count": len(sats)}
 
 
 @app.get("/api/satellites/{norad_id}")
@@ -193,6 +197,41 @@ async def get_links(
         "comm_range_km": comm_range_km,
         "timestamp": (dt or datetime.now(timezone.utc)).isoformat(),
     }
+
+
+# ── Эндпоинт: Прогнозирование коллизий ────────────────────────────
+@app.get("/api/collisions")
+async def get_collisions(
+    threshold_km: float = Query(default=100.0, ge=1.0, le=1000.0),
+    hours_ahead: float = Query(default=24.0, ge=1.0, le=168.0),
+):
+    """
+    Прогнозирование потенциальных коллизий между спутниками.
+    Возвращает пары с минимальным расстоянием ≤ threshold_km за период hours_ahead.
+    """
+    approaches = predict_collisions(threshold_km, hours_ahead)
+    return {
+        "close_approaches": approaches,
+        "count": len(approaches),
+        "threshold_km": threshold_km,
+        "hours_ahead": hours_ahead,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ── Эндпоинт: Оптимизация распределения по плоскостям ─────────────
+@app.get("/api/optimize-planes")
+async def get_optimized_planes(
+    num_satellites: int = Query(default=12, ge=3, le=50),
+    num_planes: int = Query(default=3, ge=1, le=12),
+    altitude_km: float = Query(default=550.0, ge=200.0, le=2000.0),
+    inclination_deg: float = Query(default=55.0, ge=0.0, le=180.0),
+):
+    """
+    Расчёт оптимального Walker-δ распределения КА по орбитальным плоскостям.
+    """
+    result = optimize_plane_distribution(num_satellites, num_planes, altitude_km, inclination_deg)
+    return result
 
 
 # ── Эндпоинт: StarAI ───────────────────────────────────────────────

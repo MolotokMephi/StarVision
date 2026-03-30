@@ -47,7 +47,8 @@ export default function App() {
   useEffect(() => {
     loadPositions();
     // Медленный поллинг — клиентская SGP4 даёт плавную анимацию
-    const ms = Math.max(2000, 5000 / timeSpeed);
+    // Увеличен минимальный интервал для снижения нагрузки на бэкенд
+    const ms = Math.max(5000, 10000 / timeSpeed);
     intervalRef.current = setInterval(loadPositions, ms);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -63,19 +64,26 @@ export default function App() {
     }
   }, [selectedSatellite]);
 
-  // Предзагрузка орбит для всех спутников
+  // Предзагрузка орбит для всех спутников (батчами по 4 для снижения нагрузки)
   useEffect(() => {
-    if (satellites.length > 0) {
-      satellites.forEach((sat, i) => {
-        setTimeout(() => {
-          if (!orbitPaths[sat.norad_id]) {
+    if (satellites.length === 0) return;
+    let cancelled = false;
+    const loadBatched = async () => {
+      const toLoad = satellites.filter((s) => !orbitPaths[s.norad_id]);
+      const batchSize = 4;
+      for (let i = 0; i < toLoad.length; i += batchSize) {
+        if (cancelled) return;
+        const batch = toLoad.slice(i, i + batchSize);
+        await Promise.allSettled(
+          batch.map((sat) =>
             fetchOrbitPath(sat.norad_id, 120, 60)
               .then((res) => setOrbitPath(res.norad_id, res.path))
-              .catch(console.error);
-          }
-        }, i * 200);
-      });
-    }
+          )
+        );
+      }
+    };
+    loadBatched();
+    return () => { cancelled = true; };
   }, [satellites]);
 
   // Маппинг norad_id → constellation

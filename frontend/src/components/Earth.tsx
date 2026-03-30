@@ -3,7 +3,7 @@ import { useFrame, useLoader } from '@react-three/fiber';
 import { TextureLoader, Mesh, BackSide } from 'three';
 
 // Масштаб: 1 unit = 1 радиус Земли
-const EARTH_SEGMENTS = 64;
+const EARTH_SEGMENTS = 48;
 
 // Скорость вращения Земли: 360° за 86164 сек (звёздные сутки)
 const EARTH_ROTATION_SPEED = (2 * Math.PI) / 86164;
@@ -48,7 +48,7 @@ function EarthWithTexture({ timeSpeed }: EarthProps) {
 
       {/* Атмосфера — внешнее свечение */}
       <mesh ref={atmosphereRef} scale={1.015}>
-        <sphereGeometry args={[1, 48, 48]} />
+        <sphereGeometry args={[1, 32, 32]} />
         <meshPhongMaterial
           color="#6aadee"
           transparent
@@ -98,7 +98,7 @@ function EarthFallback({ timeSpeed }: EarthProps) {
         />
       </mesh>
       <mesh ref={atmosphereRef} scale={1.015}>
-        <sphereGeometry args={[1, 48, 48]} />
+        <sphereGeometry args={[1, 32, 32]} />
         <meshPhongMaterial
           color="#5599dd"
           transparent

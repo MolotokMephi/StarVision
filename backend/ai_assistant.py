@@ -102,7 +102,7 @@ async def ask_starai(
             if block.get("type") == "text":
                 text += block.get("text", "")
 
-        # Парсим JSON из ответа
+        # Парсим JSON из ответа (с поддержкой ```json блоков)
         try:
             parsed = json.loads(text)
             return {
@@ -110,6 +110,29 @@ async def ask_starai(
                 "actions": parsed.get("actions", []),
             }
         except json.JSONDecodeError:
+            # Попытка извлечь JSON из markdown code block
+            import re
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+            if json_match:
+                try:
+                    parsed = json.loads(json_match.group(1).strip())
+                    return {
+                        "message": parsed.get("message", text),
+                        "actions": parsed.get("actions", []),
+                    }
+                except json.JSONDecodeError:
+                    pass
+            # Попытка найти JSON объект в тексте
+            json_obj_match = re.search(r'\{[\s\S]*"message"[\s\S]*\}', text)
+            if json_obj_match:
+                try:
+                    parsed = json.loads(json_obj_match.group(0))
+                    return {
+                        "message": parsed.get("message", text),
+                        "actions": parsed.get("actions", []),
+                    }
+                except json.JSONDecodeError:
+                    pass
             return {"message": text, "actions": []}
 
     except Exception:
@@ -427,6 +450,37 @@ def _fallback_response(user_message: str) -> Dict[str, Any]:
                        "✦ Объяснять механику: «Что такое SGP4?», «Законы Кеплера»\n"
                        "✦ Сравнивать: «Сравни Starlink и Сферу»\n"
                        "✦ Сбросить всё: «Сброс»",
+            "actions": [],
+        }
+
+    # ── Коллизии / столкновения ────────────────────────────
+    if any(w in msg_lower for w in ["коллизи", "столкнов", "сближен", "опасност", "collision"]):
+        return {
+            "message": "Прогнозирование коллизий — важная задача управления группировкой. "
+                       "StarVision анализирует траектории всех спутников на 24 часа вперёд "
+                       "и выявляет потенциальные сближения (порог: 100 км).\n\n"
+                       "Основные методы предотвращения:\n"
+                       "• Мониторинг каталога NORAD / 18-й эскадрильи ВКС США\n"
+                       "• Манёвры уклонения при P(collision) > 10⁻⁴\n"
+                       "• Walker-распределение минимизирует риск внутри группировки\n\n"
+                       "Используйте API: /api/collisions для получения прогноза.",
+            "actions": [],
+        }
+
+    # ── Оптимизация плоскостей ──────────────────────────
+    if any(w in msg_lower for w in ["оптимиз", "walker", "распредел", "плоскост"]):
+        return {
+            "message": "Оптимизация распределения по орбитальным плоскостям использует "
+                       "модель Walker-δ constellation (T/P/F):\n\n"
+                       "• T — общее число спутников\n"
+                       "• P — число орбитальных плоскостей\n"
+                       "• F — фазовый фактор (межплоскостный сдвиг)\n\n"
+                       "Оптимальное распределение обеспечивает:\n"
+                       "✦ Максимальное покрытие поверхности Земли\n"
+                       "✦ Минимальные перерывы в связи\n"
+                       "✦ Равномерную нагрузку на каналы ISL\n\n"
+                       "Используйте ползунок «Орбитальные плоскости» в панели управления "
+                       "или API: /api/optimize-planes.",
             "actions": [],
         }
 
