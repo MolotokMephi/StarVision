@@ -39,10 +39,10 @@ function EarthWithTexture({ timeSpeed }: EarthProps) {
         <sphereGeometry args={[1, EARTH_SEGMENTS, EARTH_SEGMENTS]} />
         <meshPhongMaterial
           map={texture}
-          emissive="#112244"
-          emissiveIntensity={0.05}
-          shininess={15}
-          specular="#224466"
+          emissive="#1a3355"
+          emissiveIntensity={0.15}
+          shininess={25}
+          specular="#446688"
         />
       </mesh>
 
@@ -50,20 +50,20 @@ function EarthWithTexture({ timeSpeed }: EarthProps) {
       <mesh ref={atmosphereRef} scale={1.015}>
         <sphereGeometry args={[1, 48, 48]} />
         <meshPhongMaterial
-          color="#5599dd"
+          color="#6aadee"
           transparent
-          opacity={0.1}
+          opacity={0.14}
           side={BackSide}
         />
       </mesh>
 
       {/* Внешнее свечение (glow) */}
-      <mesh scale={1.06}>
+      <mesh scale={1.05}>
         <sphereGeometry args={[1, 32, 32]} />
         <meshBasicMaterial
-          color="#3389ff"
+          color="#4499ff"
           transparent
-          opacity={0.04}
+          opacity={0.07}
           side={BackSide}
         />
       </mesh>

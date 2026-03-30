@@ -187,7 +187,7 @@ export function StarAIChat() {
               <StarIcon size={36} className="mx-auto star-icon opacity-60" />
             </div>
             <div className="text-star-400 text-xs font-body mb-4">
-              Я StarAI — интеллектуальный ассистент StarGrid.<br />
+              Я StarAI — интеллектуальный ассистент StarVision.<br />
               Спроси о спутниках или управляй визуализацией.
             </div>
             <div className="space-y-1.5">

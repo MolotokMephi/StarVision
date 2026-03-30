@@ -37,7 +37,10 @@ export const useStore = create<AppState>((set) => ({
   setShowLabels: (show) => set({ showLabels: show }),
   setShowCoverage: (show) => set({ showCoverage: show }),
   setShowLinks: (show) => set({ showLinks: show }),
-  selectSatellite: (id) => set({ selectedSatellite: id }),
+  selectSatellite: (id) => set(id === null
+    ? { selectedSatellite: null, focusedSatellite: null, cameraFollowing: false }
+    : { selectedSatellite: id }
+  ),
   focusSatellite: (id) => set({ focusedSatellite: id, selectedSatellite: id, cameraFollowing: true }),
   setCameraFollowing: (following) => set({ cameraFollowing: following }),
   highlightConstellation: (name) => set({ highlightedConstellation: name }),

@@ -5,10 +5,10 @@
 :root {
   --star-glow: rgba(100, 170, 255, 0.4);
   --star-glow-strong: rgba(100, 170, 255, 0.7);
-  --panel-bg: rgba(15, 25, 50, 0.55);
-  --panel-border: rgba(120, 180, 255, 0.18);
-  --panel-border-hover: rgba(120, 180, 255, 0.4);
-  --glass-shine: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0) 60%);
+  --panel-bg: rgba(8, 16, 40, 0.65);
+  --panel-border: rgba(100, 170, 255, 0.22);
+  --panel-border-hover: rgba(120, 190, 255, 0.45);
+  --glass-shine: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 30%, rgba(255,255,255,0) 50%, rgba(100,170,255,0.02) 80%, rgba(100,170,255,0.04) 100%);
 }
 
 * {
@@ -31,27 +31,30 @@ html, body, #root {
   background: var(--panel-bg);
   background-image: var(--glass-shine);
   border: 1px solid var(--panel-border);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(32px) saturate(1.6) brightness(1.1);
+  -webkit-backdrop-filter: blur(32px) saturate(1.6) brightness(1.1);
   border-radius: 16px;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 0 0 0.5px rgba(120, 180, 255, 0.1);
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 0 0.5px rgba(120, 180, 255, 0.12);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .glass-panel:hover {
   border-color: var(--panel-border-hover);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 20px rgba(80, 150, 255, 0.08);
+    0 8px 40px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 0 24px rgba(80, 150, 255, 0.1);
 }
 
 /* ── Scrollbar ───────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 4px;
+  height: 0;
 }
 
 ::-webkit-scrollbar-track {
@@ -59,12 +62,17 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(51, 137, 255, 0.3);
+  background: rgba(51, 137, 255, 0.25);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(51, 137, 255, 0.5);
+  background: rgba(51, 137, 255, 0.45);
+}
+
+/* Hide horizontal scrollbar */
+::-webkit-scrollbar:horizontal {
+  display: none;
 }
 
 /* ── Animations ──────────────────────────────────────── */
@@ -160,9 +168,11 @@ html, body, #root {
 /* ── Satellite label ─────────────────────────────────── */
 .sat-label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: #8ec9ff;
-  text-shadow: 0 0 6px rgba(51, 137, 255, 0.5);
+  font-size: 11px;
+  color: #a8d8ff;
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.8),
+    0 0 8px rgba(51, 137, 255, 0.6);
   pointer-events: none;
   white-space: nowrap;
 }

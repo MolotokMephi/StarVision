@@ -33,7 +33,7 @@ export function ControlPanel() {
 
   return (
     <div
-      className="glass-panel absolute top-4 left-4 w-72 p-4 animate-slide-left z-10 overflow-y-auto"
+      className="glass-panel absolute top-4 left-4 w-72 p-4 animate-slide-left z-10 overflow-y-auto overflow-x-hidden"
       style={{ animationDelay: '0.2s', animationFillMode: 'both', maxHeight: 'calc(100vh - 80px)' }}
     >
       {/* Заголовок */}
@@ -62,14 +62,6 @@ export function ControlPanel() {
             </button>
           ))}
         </div>
-        <input
-          type="range"
-          min={1}
-          max={200}
-          value={timeSpeed}
-          onChange={(e) => setTimeSpeed(Number(e.target.value))}
-          className="mt-2"
-        />
       </div>
 
       {/* Количество спутников */}
