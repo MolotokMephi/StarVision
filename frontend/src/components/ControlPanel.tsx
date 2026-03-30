@@ -28,6 +28,7 @@ export function ControlPanel() {
     satelliteCount, setSatelliteCount,
     orbitAltitudeKm, setOrbitAltitudeKm,
     commRangeKm, setCommRangeKm,
+    orbitalPlanes, setOrbitalPlanes,
     resetView,
   } = useStore();
 
@@ -115,10 +116,34 @@ export function ControlPanel() {
         </div>
         {orbitAltitudeKm > 0 && (
           <p className="text-[9px] text-star-600 font-mono mt-1">
-            Круговые орбиты: {satelliteCount} КА равномерно, наклонение 55°
+            Круговые орбиты: {satelliteCount} КА, {orbitalPlanes} {orbitalPlanes === 1 ? 'плоскость' : orbitalPlanes < 5 ? 'плоскости' : 'плоскостей'}, 55°
           </p>
         )}
       </div>
+
+      {/* Орбитальные плоскости (только для виртуальных орбит) */}
+      {orbitAltitudeKm > 0 && (
+        <div className="mb-4">
+          <label className="block text-xs text-star-400 font-mono mb-2">
+            Орбитальные плоскости: <span className="text-star-200">{orbitalPlanes}</span>
+          </label>
+          <input
+            type="range"
+            min={1}
+            max={7}
+            step={1}
+            value={orbitalPlanes}
+            onChange={(e) => setOrbitalPlanes(Number(e.target.value))}
+          />
+          <div className="flex justify-between text-[10px] text-star-700 font-mono mt-0.5">
+            <span>1</span>
+            <span>7</span>
+          </div>
+          <p className="text-[9px] text-star-600 font-mono mt-1">
+            Walker: RAAN равномерно, {Math.ceil(satelliteCount / orbitalPlanes)} КА/плоскость
+          </p>
+        </div>
+      )}
 
       {/* Дальность связи */}
       <div className="mb-4">

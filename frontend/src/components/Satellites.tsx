@@ -8,11 +8,9 @@
  */
 
 import { useRef, useMemo, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import {
-  Mesh, Vector3, Group,
-} from 'three';
+import { Vector3, Group } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime, advanceSimTime } from '../simClock';
 import type { SatellitePosition, OrbitPoint, TLEData } from '../types';
@@ -63,24 +61,27 @@ function computeCircularOrbitECI(
   index: number,
   total: number,
   altitudeKm: number,
-  simTimeSec: number
+  simTimeSec: number,
+  planes: number = 1
 ): { x: number; y: number; z: number } {
   const a = EARTH_RADIUS + altitudeKm;
   const n = Math.sqrt(MU / (a * a * a)); // рад/с
   const incl = (55 * Math.PI) / 180;
-  const raan = (index / total) * 2 * Math.PI;
-  const phase = (index / total) * 2 * Math.PI;
+  const P = Math.max(1, Math.min(planes, total));
+  const satsPerPlane = Math.ceil(total / P);
+  const planeIdx = index % P;
+  const satInPlane = Math.floor(index / P);
+  const raan = (planeIdx / P) * 2 * Math.PI;
+  const phase = (satInPlane / satsPerPlane) * 2 * Math.PI;
   const M = n * simTimeSec + phase;
 
   const xOrb = a * Math.cos(M);
   const yOrb = a * Math.sin(M);
 
-  // Rx(-incl)
   const xInc = xOrb;
   const yInc = yOrb * Math.cos(incl);
   const zInc = yOrb * Math.sin(incl);
 
-  // Rz(-raan)
   const cosR = Math.cos(raan);
   const sinR = Math.sin(raan);
   return {
@@ -328,12 +329,14 @@ function VirtualOrbitLine({
   altitudeKm,
   color,
   opacity = 0.2,
+  planes = 1,
 }: {
   index: number;
   total: number;
   altitudeKm: number;
   color: string;
   opacity?: number;
+  planes?: number;
 }) {
   const positions = useMemo(() => {
     const steps = 128;
@@ -341,8 +344,12 @@ function VirtualOrbitLine({
     const a = EARTH_RADIUS + altitudeKm;
     const n = Math.sqrt(MU / (a * a * a));
     const incl = (55 * Math.PI) / 180;
-    const raan = (index / total) * 2 * Math.PI;
-    const phase = (index / total) * 2 * Math.PI;
+    const P = Math.max(1, Math.min(planes, total));
+    const satsPerPlane = Math.ceil(total / P);
+    const planeIdx = index % P;
+    const satInPlane = Math.floor(index / P);
+    const raan = (planeIdx / P) * 2 * Math.PI;
+    const phase = (satInPlane / satsPerPlane) * 2 * Math.PI;
     const period = (2 * Math.PI) / n;
 
     for (let i = 0; i < steps; i++) {
@@ -363,7 +370,7 @@ function VirtualOrbitLine({
       arr[i * 3 + 2] = -y * SCALE;
     }
     return arr;
-  }, [index, total, altitudeKm]);
+  }, [index, total, altitudeKm, planes]);
 
   return (
     <line>
@@ -394,6 +401,7 @@ interface SatellitesProps {
   satelliteConstellations: Record<number, string>;
   satelliteCount: number;
   orbitAltitudeKm: number;
+  orbitalPlanes: number;
   timeSpeed: number;
 }
 
@@ -410,6 +418,7 @@ export function Satellites({
   satelliteConstellations,
   satelliteCount,
   orbitAltitudeKm,
+  orbitalPlanes,
   timeSpeed,
 }: SatellitesProps) {
   // ── Клиентская SGP4: инициализируем satrec-объекты ────────────────
@@ -467,7 +476,7 @@ export function Satellites({
       // Режим виртуальный
       if (orbitAltitudeKm > 0) {
         const idx = noradId - 90000;
-        const eci = computeCircularOrbitECI(idx, virtualSatCount, orbitAltitudeKm, simTime / 1000);
+        const eci = computeCircularOrbitECI(idx, virtualSatCount, orbitAltitudeKm, simTime / 1000, orbitalPlanes);
         return eci;
       }
       // Режим реальных TLE через satellite.js
@@ -484,7 +493,7 @@ export function Satellites({
     const simTime = getSimTime();
     if (orbitAltitudeKm > 0) {
       const idx = noradId - 90000;
-      const eci = computeCircularOrbitECI(idx, Math.max(virtualSatCount, 1), orbitAltitudeKm, simTime / 1000);
+      const eci = computeCircularOrbitECI(idx, Math.max(virtualSatCount, 1), orbitAltitudeKm, simTime / 1000, orbitalPlanes);
       return new Vector3(eci.x * SCALE, eci.z * SCALE, -eci.y * SCALE);
     }
     const p = positions.find((pos) => pos.norad_id === noradId);
@@ -574,6 +583,7 @@ export function Satellites({
               altitudeKm={orbitAltitudeKm}
               color={color}
               opacity={isActive ? 0.6 : 0.2}
+              planes={orbitalPlanes}
             />
           );
         })}

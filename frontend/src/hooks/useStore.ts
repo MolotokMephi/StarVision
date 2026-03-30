@@ -25,6 +25,7 @@ export const useStore = create<AppState>((set) => ({
   orbitAltitudeKm: 0,
   commRangeKm: 500,
   activeLinksCount: 0,
+  orbitalPlanes: 3,
 
   // Chat
   chatOpen: false,
@@ -54,9 +55,14 @@ export const useStore = create<AppState>((set) => ({
   setOrbitAltitudeKm: (km) => set({ orbitAltitudeKm: km }),
   setCommRangeKm: (km) => set({ commRangeKm: km }),
   setActiveLinksCount: (count) => set({ activeLinksCount: count }),
+  setOrbitalPlanes: (planes) => set({ orbitalPlanes: planes }),
   setChatOpen: (open) => set({ chatOpen: open }),
   addChatMessage: (msg) =>
-    set((state) => ({ chatMessages: [...state.chatMessages, msg] })),
+    set((state) => {
+      const messages = [...state.chatMessages, msg];
+      // Ограничиваем историю чата до 50 сообщений
+      return { chatMessages: messages.length > 50 ? messages.slice(-50) : messages };
+    }),
   setChatLoading: (loading) => set({ chatLoading: loading }),
   setSatellites: (sats) => set({ satellites: sats }),
   setPositions: (pos) => set({ positions: pos }),
@@ -77,5 +83,6 @@ export const useStore = create<AppState>((set) => ({
       satelliteCount: 19,
       orbitAltitudeKm: 0,
       commRangeKm: 500,
+      orbitalPlanes: 3,
     }),
 }));

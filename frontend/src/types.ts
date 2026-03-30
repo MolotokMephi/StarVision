@@ -63,6 +63,7 @@ export interface AppState {
   orbitAltitudeKm: number;   // 0 = используются реальные TLE; >0 = виртуальные круговые орбиты
   commRangeKm: number;       // порог дальности связи (50–2000 км)
   activeLinksCount: number;  // текущее количество активных МСС
+  orbitalPlanes: number;     // количество орбитальных плоскостей (1–7)
 
   // StarAI
   chatOpen: boolean;
@@ -84,6 +85,7 @@ export interface AppState {
   setOrbitAltitudeKm: (km: number) => void;
   setCommRangeKm: (km: number) => void;
   setActiveLinksCount: (count: number) => void;
+  setOrbitalPlanes: (planes: number) => void;
   setChatOpen: (open: boolean) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatLoading: (loading: boolean) => void;

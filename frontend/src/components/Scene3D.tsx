@@ -15,12 +15,16 @@ const MU = 398600.4418;
 const CAM_SCALE = 1 / EARTH_RADIUS;
 
 // ── Helper: compute virtual orbit position ──────────────────────────
-function computeVirtualECI(index: number, total: number, altKm: number, simTimeSec: number) {
+function computeVirtualECI(index: number, total: number, altKm: number, simTimeSec: number, planes: number = 1) {
   const a = EARTH_RADIUS + altKm;
   const n = Math.sqrt(MU / (a * a * a));
   const incl = (55 * Math.PI) / 180;
-  const raan = (index / total) * 2 * Math.PI;
-  const phase = (index / total) * 2 * Math.PI;
+  const P = Math.max(1, Math.min(planes, total));
+  const satsPerPlane = Math.ceil(total / P);
+  const planeIdx = index % P;
+  const satInPlane = Math.floor(index / P);
+  const raan = (planeIdx / P) * 2 * Math.PI;
+  const phase = (satInPlane / satsPerPlane) * 2 * Math.PI;
   const M = n * simTimeSec + phase;
   const xOrb = a * Math.cos(M);
   const yOrb = a * Math.sin(M);
@@ -93,10 +97,11 @@ interface CameraControllerProps {
   tleData: TLEData[];
   orbitAltitudeKm: number;
   satelliteCount: number;
+  orbitalPlanes: number;
   controlsRef: React.RefObject<any>;
 }
 
-function CameraController({ tleData, orbitAltitudeKm, satelliteCount, controlsRef }: CameraControllerProps) {
+function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPlanes, controlsRef }: CameraControllerProps) {
   const { camera } = useThree();
   const { focusedSatellite, selectedSatellite, cameraFollowing, setCameraFollowing, selectSatellite } = useStore();
   const prevDistRef = useRef<number>(0);
@@ -119,7 +124,7 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, controlsRe
     const simTime = getSimTime();
     if (orbitAltitudeKm > 0 && id >= 90000) {
       const idx = id - 90000;
-      const eci = computeVirtualECI(idx, satelliteCount, orbitAltitudeKm, simTime / 1000);
+      const eci = computeVirtualECI(idx, satelliteCount, orbitAltitudeKm, simTime / 1000, orbitalPlanes);
       return new Vector3(eci.x * CAM_SCALE, eci.z * CAM_SCALE, -eci.y * CAM_SCALE);
     }
     const satrec = satrecsRef.current[id];
@@ -128,7 +133,7 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, controlsRe
     if (!pv.position || typeof pv.position === 'boolean') return null;
     const pos = pv.position as { x: number; y: number; z: number };
     return new Vector3(pos.x * CAM_SCALE, pos.z * CAM_SCALE, -pos.y * CAM_SCALE);
-  }, [orbitAltitudeKm, satelliteCount]);
+  }, [orbitAltitudeKm, satelliteCount, orbitalPlanes]);
 
   // Start animation when focus changes
   useEffect(() => {
@@ -220,6 +225,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
     activeConstellations,
     satelliteCount,
     orbitAltitudeKm,
+    orbitalPlanes,
     commRangeKm,
     showLinks,
     selectSatellite,
@@ -247,6 +253,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
         tleData={tleData}
         orbitAltitudeKm={orbitAltitudeKm}
         satelliteCount={satelliteCount}
+        orbitalPlanes={orbitalPlanes}
         controlsRef={controlsRef}
       />
 
@@ -258,7 +265,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
       <pointLight position={[0, 0, 0]} intensity={0.15} color="#5599dd" distance={10} />
 
       {/* Звёзды */}
-      <Stars radius={100} depth={80} count={4000} factor={3} saturation={0.1} fade speed={0.5} />
+      <Stars radius={100} depth={80} count={2500} factor={3} saturation={0.1} fade speed={0.5} />
 
       {/* Земля с NASA Blue Marble */}
       <Earth timeSpeed={timeSpeed} />
@@ -280,6 +287,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
         satelliteConstellations={satelliteConstellations}
         satelliteCount={satelliteCount}
         orbitAltitudeKm={orbitAltitudeKm}
+        orbitalPlanes={orbitalPlanes}
         timeSpeed={timeSpeed}
       />
 
@@ -306,7 +314,7 @@ export function Scene3D({ positions, tleData, orbitPaths, satelliteConstellation
       <Canvas
         gl={{ antialias: true, alpha: false }}
         style={{ background: '#050a18' }}
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
       >
         <Suspense fallback={null}>
           <SceneContent
