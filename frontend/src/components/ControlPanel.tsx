@@ -26,6 +26,7 @@ export function ControlPanel() {
     showOrbits, setShowOrbits,
     showLabels, setShowLabels,
     showLinks, setShowLinks,
+    showCoverage, setShowCoverage,
     activeConstellations, toggleConstellation,
     satelliteCount, setSatelliteCount,
     orbitAltitudeKm, setOrbitAltitudeKm,
@@ -186,6 +187,7 @@ export function ControlPanel() {
           checked={showLinks}
           onChange={setShowLinks}
         />
+        <Toggle label={t('control.coverageZones', lang)} checked={showCoverage} onChange={setShowCoverage} />
       </div>
 
       {/* Constellations */}

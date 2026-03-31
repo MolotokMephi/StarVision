@@ -29,6 +29,7 @@ export const translations = {
   'control.orbitalTracks': { ru: 'Орбитальные треки', en: 'Orbital tracks' },
   'control.satLabels': { ru: 'Подписи спутников', en: 'Satellite labels' },
   'control.islLinks': { ru: 'Линии связи (МСС)', en: 'ISL links' },
+  'control.coverageZones': { ru: 'Зоны покрытия', en: 'Coverage zones' },
   'control.constellations': { ru: 'Группировки', en: 'Constellations' },
   'control.reset': { ru: 'Сбросить вид', en: 'Reset view' },
   'control.circularOrbits': { ru: 'Круговые орбиты', en: 'Circular orbits' },
