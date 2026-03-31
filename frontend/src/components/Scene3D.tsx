@@ -7,6 +7,7 @@ import { getSimTime } from '../simClock';
 import { Earth } from './Earth';
 import { Satellites } from './Satellites';
 import { InterSatelliteLinks } from './InterSatelliteLinks';
+import { CoverageZones } from './CoverageZones';
 import { useStore } from '../hooks/useStore';
 import type { SatellitePosition, OrbitPoint, TLEData } from '../types';
 
@@ -293,6 +294,12 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
 
       {/* Межспутниковые линии связи */}
       <InterSatelliteLinks
+        tleData={tleData}
+        satelliteConstellations={satelliteConstellations}
+      />
+
+      {/* Зоны покрытия спутников */}
+      <CoverageZones
         tleData={tleData}
         satelliteConstellations={satelliteConstellations}
       />

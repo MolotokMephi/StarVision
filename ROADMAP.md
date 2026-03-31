@@ -63,7 +63,8 @@
 | Active links indicator | ✅ Done | Status bar in `Header.tsx:63-68` — live count, green when > 0 |
 | Constellation group filter | ✅ Done | 7 colour-coded buttons with on/off toggle |
 | Simulation speed presets | ✅ Done | 1×, 10×, 50×, 100×, 200× |
-| **Coverage zone toggle / footprint render** | ⚠️ Partial | `showCoverage` state defined in store+types; **no rendering component connected** — dead code |
+| Coverage zone toggle (show/hide) | ✅ Done | Toggle in `ControlPanel.tsx` wired to `showCoverage` store state |
+| Coverage zone footprint renderer | ✅ Done | `CoverageZones.tsx` — filled disk + ring outline per satellite; horizon circle θ = arccos(R_E/r) |
 
 ### Spec 3.6 — Open Data Usage
 
@@ -122,11 +123,10 @@
 ## Functional Coverage Summary
 
 ```
-Core requirements (spec 3–4):   20 / 21 checked  (95%)
+Core requirements (spec 3–4):   21 / 21 checked  (100%)
 Bonus requirements (spec 7):    15 / 15 checked  (100%)
 
 Open issues:
-  ⚠️  showCoverage — state wired, rendering not implemented
   ❌  Deployment (public URL)
   ❌  Screenshots / demo video
 ```
@@ -165,15 +165,7 @@ Open issues:
    - Capture: StarAI chat interaction
    - Record ≥ 60 s walkthrough video for presentation
 
-### P1 — Known incomplete feature
-
-3. **Coverage zone footprint visualisation** (optional per ТЗ 3.4 / UI example)
-   - `showCoverage` state exists in `useStore.ts:20` and `types.ts:58`
-   - No rendering code connected — needs `CoverageZones.tsx` component
-   - Suggested: semi-transparent cone/circle on Earth surface per satellite
-   - Add toggle to `ControlPanel.tsx` (after existing toggles block)
-
-### P2 — Nice to have
+### P1 — Nice to have
 
 4. **Interference / signal degradation on ISL** (optional per ТЗ 3.4)
    - Animated dashed lines or opacity variation for degraded links
