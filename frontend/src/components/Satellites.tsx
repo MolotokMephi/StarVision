@@ -452,12 +452,13 @@ export function Satellites({
 
   const virtualSatItems = useMemo(() => {
     if (orbitAltitudeKm <= 0) return [];
-    return Array.from({ length: satelliteCount }, (_, i) => ({
+    const allVirt = Array.from({ length: satelliteCount }, (_, i) => ({
       norad_id: 90000 + i,
       name: `VirtSat-${i + 1}`,
       constellation: Object.keys(CONSTELLATION_COLORS)[i % Object.keys(CONSTELLATION_COLORS).length],
     }));
-  }, [orbitAltitudeKm, satelliteCount]);
+    return allVirt.filter((sat) => activeConstellations.includes(sat.constellation));
+  }, [orbitAltitudeKm, satelliteCount, activeConstellations]);
 
   // Режим реальных TLE: выбираем N спутников равномерно
   const filteredRealPositions = useMemo(() => {

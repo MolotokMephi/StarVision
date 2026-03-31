@@ -16,6 +16,9 @@ export default function App() {
     timeSpeed,
     selectedSatellite,
     activeLinksCount,
+    satelliteCount,
+    orbitAltitudeKm,
+    activeConstellations,
   } = useStore();
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,9 +58,9 @@ export default function App() {
     };
   }, [timeSpeed, loadPositions]);
 
-  // Загрузка орбит при выборе спутника
+  // Загрузка орбит при выборе спутника (пропускаем виртуальные NORAD 90000+)
   useEffect(() => {
-    if (selectedSatellite && !orbitPaths[selectedSatellite]) {
+    if (selectedSatellite && selectedSatellite < 90000 && !orbitPaths[selectedSatellite]) {
       fetchOrbitPath(selectedSatellite, 180, 60)
         .then((res) => setOrbitPath(res.norad_id, res.path))
         .catch(console.error);
@@ -93,10 +96,38 @@ export default function App() {
     return map;
   }, [satellites]);
 
-  const activeCount = positions.filter(p => {
-    const sat = satellites.find(s => s.norad_id === p.norad_id);
-    return sat?.status === 'active';
-  }).length;
+  // Подсчёт отображаемых КА с учётом режима (виртуальный / реальный)
+  const displayedCount = useMemo(() => {
+    if (orbitAltitudeKm > 0) {
+      // Virtual mode: all satelliteCount are "active", filtered by constellations
+      const CONSTELLATIONS = ['Сфера', 'Образовательные', 'Гонец', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
+      let count = 0;
+      for (let i = 0; i < satelliteCount; i++) {
+        if (activeConstellations.includes(CONSTELLATIONS[i % CONSTELLATIONS.length])) count++;
+      }
+      return count;
+    }
+    // Real mode: filter by active constellations, then take up to satelliteCount
+    const filtered = positions.filter((p) => {
+      const c = satelliteConstellations[p.norad_id];
+      return activeConstellations.includes(c);
+    });
+    return Math.min(satelliteCount, filtered.length);
+  }, [orbitAltitudeKm, satelliteCount, activeConstellations, positions, satelliteConstellations]);
+
+  const activeCount = useMemo(() => {
+    if (orbitAltitudeKm > 0) return displayedCount;
+    // In real mode, count active satellites among the displayed set
+    const filtered = positions.filter((p) => {
+      const c = satelliteConstellations[p.norad_id];
+      return activeConstellations.includes(c);
+    });
+    const displayed = filtered.slice(0, satelliteCount);
+    return displayed.filter(p => {
+      const sat = satellites.find(s => s.norad_id === p.norad_id);
+      return sat?.status === 'active';
+    }).length;
+  }, [orbitAltitudeKm, displayedCount, positions, satelliteConstellations, activeConstellations, satelliteCount, satellites]);
 
   return (
     <div className="relative w-full h-full">
@@ -110,7 +141,7 @@ export default function App() {
 
       {/* Header */}
       <Header
-        satelliteCount={satellites.length}
+        satelliteCount={displayedCount}
         activeCount={activeCount}
         timeSpeed={timeSpeed}
         activeLinksCount={activeLinksCount}

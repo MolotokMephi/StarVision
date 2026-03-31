@@ -99,7 +99,7 @@ export function StarAIChat() {
     setChatLoading(true);
 
     try {
-      const response = await sendChatMessage(msg, chatMessages);
+      const response = await sendChatMessage(msg, chatMessages, lang);
       addChatMessage({
         role: 'assistant',
         content: response.message,

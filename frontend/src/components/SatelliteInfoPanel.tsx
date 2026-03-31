@@ -9,11 +9,33 @@ interface SatelliteInfoPanelProps {
 }
 
 export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanelProps) {
-  const { lang, selectedSatellite, selectSatellite, focusSatellite } = useStore();
+  const { lang, selectedSatellite, selectSatellite, focusSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount } = useStore();
+
+  const isVirtual = selectedSatellite !== null && selectedSatellite >= 90000;
 
   const satData = useMemo(
-    () => satellites.find((s) => s.norad_id === selectedSatellite),
-    [satellites, selectedSatellite]
+    () => {
+      if (!selectedSatellite) return undefined;
+      if (isVirtual) {
+        const CONSTELLATIONS = ['Сфера', 'Образовательные', 'Гонец', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
+        const idx = selectedSatellite - 90000;
+        return {
+          norad_id: selectedSatellite,
+          name: `VirtSat-${idx + 1}`,
+          constellation: CONSTELLATIONS[idx % CONSTELLATIONS.length],
+          purpose: lang === 'en' ? 'Virtual satellite' : 'Виртуальный спутник',
+          mass_kg: 0,
+          form_factor: 'Virtual',
+          launch_date: '—',
+          status: 'active',
+          description: lang === 'en'
+            ? `Virtual satellite on circular orbit at ${orbitAltitudeKm} km altitude, ${orbitalPlanes} orbital planes, ${satelliteCount} total S/C.`
+            : `Виртуальный спутник на круговой орбите высотой ${orbitAltitudeKm} км, ${orbitalPlanes} плоскостей, ${satelliteCount} КА.`,
+        } as SatelliteData;
+      }
+      return satellites.find((s) => s.norad_id === selectedSatellite);
+    },
+    [satellites, selectedSatellite, isVirtual, orbitAltitudeKm, orbitalPlanes, satelliteCount, lang]
   );
 
   const satPos = useMemo(
@@ -61,8 +83,12 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         </span>
         <span className="text-xs text-star-600 font-mono">|</span>
         <span className="text-xs text-star-400 font-mono">{satData.form_factor}</span>
-        <span className="text-xs text-star-600 font-mono">|</span>
-        <span className="text-xs text-star-400 font-mono">{satData.mass_kg} {kg}</span>
+        {!isVirtual && (
+          <>
+            <span className="text-xs text-star-600 font-mono">|</span>
+            <span className="text-xs text-star-400 font-mono">{satData.mass_kg} {kg}</span>
+          </>
+        )}
       </div>
 
       {/* Description */}
@@ -98,7 +124,9 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         <DataRow label={t('info.noradId', lang)} value={String(satData.norad_id)} />
         <DataRow label={t('info.constellation', lang)} value={tConstellation(satData.constellation, lang)} />
         <DataRow label={t('info.purpose', lang)} value={satData.purpose} />
-        <DataRow label={t('info.launch', lang)} value={satData.launch_date} />
+        {!isVirtual && (
+          <DataRow label={t('info.launch', lang)} value={satData.launch_date} />
+        )}
       </div>
 
       {/* Focus button */}

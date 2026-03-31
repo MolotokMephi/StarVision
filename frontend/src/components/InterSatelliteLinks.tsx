@@ -224,8 +224,17 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     let eciPositions: Array<{ norad_id: number; x: number; y: number; z: number }>;
 
     if (orbitAltitudeKm > 0) {
+      const constellationKeys = Object.keys(satelliteConstellations).length > 0
+        ? Object.values(satelliteConstellations).filter((v, i, a) => a.indexOf(v) === i)
+        : ['Сфера', 'Образовательные', 'Гонец', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
       const virt = computeVirtualPositions(satelliteCount, orbitAltitudeKm, simTime, orbitalPlanes);
-      eciPositions = virt.map((p, i) => ({ norad_id: 90000 + i, ...p }));
+      eciPositions = virt
+        .map((p, i) => ({
+          norad_id: 90000 + i,
+          constellation: constellationKeys[i % constellationKeys.length],
+          ...p,
+        }))
+        .filter((p) => activeConstellations.includes(p.constellation));
     } else if (satrecsRef.current.length > 0) {
       const now = new Date(simTime);
       const filtered = satrecsRef.current.filter(({ norad_id, constellation }) => {

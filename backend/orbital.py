@@ -256,11 +256,10 @@ def get_orbital_elements(sat_info: SatelliteInfo) -> Dict[str, Any]:
     ecc = satrec.ecco
     argp = satrec.argpo * RAD2DEG
     mean_anom = satrec.mo * RAD2DEG
-    mean_motion = satrec.no_kozai * (RAD2DEG * 1440.0 / (2 * math.pi))  # об/день
+    mean_motion = satrec.no_kozai * 1440.0 / (2 * math.pi)  # рад/мин → об/день
 
     # Полуось из среднего движения
-    n_rad_min = satrec.no_kozai / 60.0  # рад/с → рад/мин... нет, satrec.no_kozai в рад/мин
-    n_rad_s = satrec.no_kozai / 60.0
+    n_rad_s = satrec.no_kozai / 60.0  # рад/мин → рад/с
     a_km = (MU / (n_rad_s**2))**(1/3) if n_rad_s > 0 else 0
 
     return {
