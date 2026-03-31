@@ -43,6 +43,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = []
+    lang: str = "ru"
 
 
 class SimulationParams(BaseModel):
@@ -239,7 +240,7 @@ async def get_optimized_planes(
 async def starai_chat(req: ChatRequest):
     """Чат с StarAI — ответ + команды для интерфейса."""
     history = [{"role": m.role, "content": m.content} for m in req.history]
-    result = await ask_starai(req.message, history)
+    result = await ask_starai(req.message, history, lang=req.lang)
     return result
 
 

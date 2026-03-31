@@ -50,13 +50,15 @@ export async function fetchTLE() {
 
 export async function sendChatMessage(
   message: string,
-  history: ChatMessage[]
+  history: ChatMessage[],
+  lang: string = 'ru'
 ): Promise<APIChatResponse> {
   return fetchJSON('/starai/chat', {
     method: 'POST',
     body: JSON.stringify({
       message,
       history: history.map((m) => ({ role: m.role, content: m.content })),
+      lang,
     }),
   });
 }
