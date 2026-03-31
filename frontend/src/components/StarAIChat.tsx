@@ -1,21 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../hooks/useStore';
 import { sendChatMessage } from '../services/api';
+import { t } from '../i18n';
 
 // SVG Star icon for StarAI
 function StarIcon({ size = 24, className = '' }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      {/* Outer glow ring */}
       <circle cx="12" cy="12" r="11" stroke="url(#starGrad)" strokeWidth="0.5" opacity="0.4" className="star-glow-ring" />
-      {/* Star shape */}
       <path
         d="M12 2L14.4 8.8L21.6 9.2L16 13.8L17.8 21L12 17.2L6.2 21L8 13.8L2.4 9.2L9.6 8.8L12 2Z"
         fill="url(#starFill)"
         stroke="rgba(180,220,255,0.5)"
         strokeWidth="0.5"
       />
-      {/* Inner sparkle */}
       <circle cx="12" cy="11" r="2" fill="rgba(255,255,255,0.8)" />
       <defs>
         <linearGradient id="starFill" x1="2" y1="2" x2="22" y2="22">
@@ -34,6 +32,7 @@ function StarIcon({ size = 24, className = '' }: { size?: number; className?: st
 
 export function StarAIChat() {
   const {
+    lang,
     chatOpen, setChatOpen,
     chatMessages, addChatMessage,
     chatLoading, setChatLoading,
@@ -57,7 +56,6 @@ export function StarAIChat() {
     }
   }, [chatMessages]);
 
-  // Обработка действий StarAI
   const executeActions = (actions: any[]) => {
     for (const action of actions) {
       switch (action.type) {
@@ -115,7 +113,7 @@ export function StarAIChat() {
     } catch (err) {
       addChatMessage({
         role: 'assistant',
-        content: 'Ошибка связи с сервером. Попробуйте позже.',
+        content: t('chat.error', lang),
         timestamp: Date.now(),
       });
     } finally {
@@ -130,6 +128,15 @@ export function StarAIChat() {
     }
   };
 
+  const hints = [
+    t('chat.hint1', lang),
+    t('chat.hint2', lang),
+    t('chat.hint3', lang),
+    t('chat.hint4', lang),
+    t('chat.hint5', lang),
+    t('chat.hint6', lang),
+  ];
+
   if (!chatOpen) {
     return (
       <button
@@ -137,13 +144,10 @@ export function StarAIChat() {
         className="absolute bottom-6 right-6 z-20 group cursor-pointer animate-fade-in"
       >
         <div className="relative">
-          {/* Outer glow */}
           <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-xl scale-150 group-hover:bg-blue-400/30 transition-all" />
-          {/* Glass button */}
           <div className="relative glass-panel rounded-full w-14 h-14 flex items-center justify-center group-hover:border-blue-400/50 transition-all">
             <StarIcon size={28} className="star-icon" />
           </div>
-          {/* Status dot */}
           <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-void-900 shadow-lg shadow-green-400/50" />
         </div>
       </button>
@@ -167,7 +171,7 @@ export function StarAIChat() {
           <div>
             <div className="text-sm font-display font-semibold text-star-100 tracking-wide">StarAI</div>
             <div className="text-[10px] text-blue-300/60 font-mono">
-              {chatLoading ? '✦ Анализирую...' : '✦ Готов помочь'}
+              {chatLoading ? `✦ ${t('chat.analyzing', lang)}` : `✦ ${t('chat.ready', lang)}`}
             </div>
           </div>
         </div>
@@ -187,18 +191,11 @@ export function StarAIChat() {
               <StarIcon size={36} className="mx-auto star-icon opacity-60" />
             </div>
             <div className="text-star-400 text-xs font-body mb-4">
-              Я StarAI — интеллектуальный ассистент StarVision.<br />
-              Спроси о спутниках или управляй визуализацией.
+              {t('chat.intro', lang)}<br />
+              {t('chat.introSub', lang)}
             </div>
             <div className="space-y-1.5">
-              {[
-                'Расскажи про Сферу',
-                'Покажи Гонец-М',
-                'Ускорь время в 50 раз',
-                'Сколько активных связей?',
-                'Покажи все орбиты',
-                'Установи 10 спутников',
-              ].map((hint) => (
+              {hints.map((hint) => (
                 <button
                   key={hint}
                   onClick={() => setInput(hint)}
@@ -232,7 +229,7 @@ export function StarAIChat() {
               {msg.actions && msg.actions.length > 0 && (
                 <div className="mt-1.5 pt-1.5 border-t border-white/8">
                   <span className="text-[9px] text-blue-300/60 font-mono">
-                    ✦ {msg.actions.length} {msg.actions.length === 1 ? 'действие' : 'действий'} выполнено
+                    ✦ {msg.actions.length} {msg.actions.length === 1 ? t('chat.actionDone_one', lang) : t('chat.actionDone_many', lang)}
                   </span>
                 </div>
               )}
@@ -264,7 +261,7 @@ export function StarAIChat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Спроси StarAI..."
+            placeholder={t('chat.placeholder', lang)}
             className="chat-input flex-1 px-3 py-2.5 text-xs rounded-xl"
             disabled={chatLoading}
           />

@@ -4,6 +4,9 @@ import type { AppState, SatelliteData, SatellitePosition, OrbitPoint, ChatMessag
 const ALL_CONSTELLATIONS = ['Сфера', 'Гонец', 'Образовательные', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
 
 export const useStore = create<AppState>((set) => ({
+  // Language
+  lang: (typeof navigator !== 'undefined' && navigator.language?.startsWith('en') ? 'en' : 'ru') as 'ru' | 'en',
+
   // Data
   satellites: [],
   positions: [],
@@ -21,7 +24,7 @@ export const useStore = create<AppState>((set) => ({
   cameraFollowing: false,
   highlightedConstellation: null,
   activeConstellations: [...ALL_CONSTELLATIONS],
-  satelliteCount: 19,
+  satelliteCount: 15,
   orbitAltitudeKm: 0,
   commRangeKm: 500,
   activeLinksCount: 0,
@@ -33,6 +36,7 @@ export const useStore = create<AppState>((set) => ({
   chatLoading: false,
 
   // Actions
+  setLang: (lang) => set({ lang }),
   setTimeSpeed: (speed) => set({ timeSpeed: speed }),
   setShowOrbits: (show) => set({ showOrbits: show }),
   setShowLabels: (show) => set({ showLabels: show }),
@@ -80,7 +84,7 @@ export const useStore = create<AppState>((set) => ({
       showLabels: true,
       showLinks: true,
       activeConstellations: [...ALL_CONSTELLATIONS],
-      satelliteCount: 19,
+      satelliteCount: 15,
       orbitAltitudeKm: 0,
       commRangeKm: 500,
       orbitalPlanes: 3,

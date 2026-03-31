@@ -1,125 +1,63 @@
 # ROADMAP — StarVision
 
-> Обновлено 30.03.2026
-
-✅ Реализовано | 🔧 Частично | ❌ Не реализовано | ⭐ Бонус (раздел 7 ТЗ)
+> Updated 31.03.2026
 
 ---
 
-## Обязательная часть (ТЗ 3–4)
+## Spec Coverage / Покрытие ТЗ
 
-### Группировка 3–15 КА (ТЗ 4.1)
-- ✅ Каталог 19 российских КА (Сфера, Гонец, СириусСат, Декарт, УмКА, Зоркий, Беркут, Аист, НОРБИ, Ресурс-П)
-- ✅ Индивидуальная различимость — 7 цветов по группировкам
-- ✅ Ползунок количества КА (3–19), равномерное распределение (`selectUniformly`)
+### Core Requirements (spec 3–4)
 
-### Орбитальное движение (ТЗ 3.3)
-- ✅ Клиентская SGP4 через `satellite.js` — покадровая анимация в `useFrame`
-- ✅ Серверная SGP4 через `python-sgp4` (fallback)
-- ✅ Виртуальные круговые Walker-орбиты при `orbitAltitudeKm > 0`
-- ✅ Управление временем: пресеты 1x–200x
-- ✅ Орбитальные треки (120+ точек)
-- ✅ Выбор количества орбитальных плоскостей (1–7, Walker-δ распределение)
+| Requirement | Status |
+|---|---|
+| Constellation of 3–15 spacecraft (spec 4.1) | Done |
+| 15 Russian SC catalog, 7 color-coded constellations | Done |
+| Satellite count slider (3–15) with uniform distribution | Done |
+| Client-side SGP4 via `satellite.js` — per-frame animation | Done |
+| Server-side SGP4 via `python-sgp4` (fallback) | Done |
+| Virtual circular Walker orbits (400–2000 km, 1–7 planes) | Done |
+| Time control: 1×–200× presets | Done |
+| Orbital tracks (120+ points) | Done |
+| ISL: per-frame distance calc, green/red lines, LOS check | Done |
+| ISL: comm range slider (50–2000 km), toggle, link counter | Done |
+| ISL: tooltip with distance on hover (Raycaster) | Done |
+| UI panel: satellite count, orbit altitude, comm range, speed | Done |
+| UI: toggles for orbits, labels, ISL; constellation filter | Done |
+| UI: reset button | Done |
+| NASA Blue Marble Earth texture + atmosphere | Done |
+| 2 CubeSat 3D models (1U + 3U) — procedural Three.js | Done |
+| Camera: rotate, zoom, damping, satellite follow (lerp) | Done |
+| TLE from CelesTrak, NASA textures, procedural models | Done |
+| 30+ FPS, Chrome/Firefox/Safari, interactive camera | Done |
 
-### Межспутниковые связи — ISL (ТЗ 3.4)
-- ✅ Расчёт расстояний всех пар на каждом кадре
-- ✅ Зелёные линии (активная связь) / красные (вне зоны, но близко)
-- ✅ LOS-проверка (затенение Землёй) — `hasLineOfSight()`
-- ✅ Ползунок дальности связи (50–2000 км)
-- ✅ Тогл показа/скрытия МСС
-- ✅ Счётчик активных связей в Header
-- ✅ Тултип с расстоянием при наведении на линию (Raycaster + Html overlay)
+### Bonus Requirements (spec 7)
 
-### UI-панель и параметризация (ТЗ 3.5)
-- ✅ Количество спутников (3–19)
-- ✅ Высота орбиты (TLE / 400–2000 км)
-- ✅ Дальность связи (50–2000 км)
-- ✅ Кнопки скорости симуляции (1x, 10x, 50x, 100x, 200x)
-- ✅ Тоглы: орбиты, подписи, МСС
-- ✅ Фильтр по 7 группировкам
-- ✅ Кнопка «Сбросить вид»
-- ✅ Выбор количества орбитальных плоскостей (1–7)
-
-### 3D-визуализация (ТЗ 3.2)
-- ✅ Земля с NASA Blue Marble текстурой + атмосфера + свечение
-- ✅ Звёздное небо (2500 звёзд, оптимизировано)
-- ✅ 2 типа моделей КА: 1U CubeSat (2 панели) и 3U CubeSat (4 панели)
-- ✅ Камера — вращение, zoom, damping (OrbitControls)
-- ✅ Плавный перелёт камеры к КА (lerp) + режим слежения (camera follow)
-- ✅ Отвязка камеры: клик по спутнику повторно, зум, сильное вращение
-- ✅ Liquid glass UI-панели (backdrop-filter blur)
-
-### Открытые данные (ТЗ 3.6)
-- ✅ TLE из CelesTrak / Space-Track.org
-- ✅ NASA Blue Marble текстура (public domain)
-- ✅ Процедурные 3D-модели (собственные)
-- ✅ Источники указаны в README
-
-### Производительность (ТЗ 3.7, 4.2)
-- ✅ 30+ FPS в современных браузерах
-- ✅ Chrome, Firefox, Safari — стандартный WebGL
-- ✅ Интерактивная камера
-- ✅ Object pooling для ISL-линий (200 предаллоцированных объектов)
-- ✅ Throttled raycasting (каждый 3-й кадр)
-- ✅ Оптимизированные сегменты Earth/Atmosphere (48/32)
-- ✅ Адаптивный DPR [1, 1.5]
-- ✅ Батчевая загрузка орбит (по 4 параллельно)
-- ✅ Увеличенный интервал поллинга бэкенда
+| Requirement | Status |
+|---|---|
+| AI assistant StarAI (Claude API + offline fallback) — spec 7.5 | Done |
+| Collision prediction API (/api/collisions) — spec 7.5 | Done |
+| Orbital plane optimization (Walker-delta) — spec 7.5 | Done |
+| LOS check (Earth shadow on ISL) — spec 3.4 | Done |
+| Open data & ethics compliance — spec 7.6 | Done |
+| Architecture docs (ARCHITECTURE.md) — spec 7.3 | Done |
+| **Multilingual UI (RU/EN)** — spec 7.2 | Done |
 
 ---
 
-## Бонусные задания (ТЗ раздел 7, ⭐)
+## Performance Optimizations
 
-- ⭐ ✅ ИИ-ассистент StarAI (Anthropic Claude API + офлайн-фоллбэк) — ТЗ 7.5
-- ⭐ ✅ LOS-check (затенение Землёй) — ТЗ 3.4
-- ⭐ ✅ Безопасность и этика: все данные из открытых источников — ТЗ 7.6
-- ⭐ ✅ Документация архитектуры (Mermaid-диаграммы в ARCHITECTURE.md) — ТЗ 7.3
-- ⭐ ✅ Прогнозирование коллизий (API /api/collisions, 24ч вперёд) — ТЗ 7.5
-- ⭐ ✅ Оптимизация распределения по плоскостям (Walker-δ T/P/F, API /api/optimize-planes) — ТЗ 7.5
-- ⭐ ❌ Мультиязычность RU/EN — ТЗ 7.2
-
----
-
-## Оптимизации (выполнены)
-
-| Оптимизация | Описание | Экономия |
-|---|---|---|
-| Object Pooling ISL | 200 предаллоцированных Line-объектов вместо создания/удаления каждый кадр | ~60% GC pressure |
-| Throttled Raycasting | Проверка hover на ISL каждый 3-й кадр | ~66% CPU на raycast |
-| Earth Segments | 48 вместо 64 сегментов сферы | ~44% вершин |
-| Atmosphere Segments | 32 вместо 48 | ~55% вершин |
-| Stars Count | 2500 вместо 4000 | ~37% particles |
-| DPR Cap | [1, 1.5] вместо [1, 2] | ~25% пикселей на HiDPI |
-| Batch Orbit Loading | Promise.allSettled по 4 вместо setTimeout | Быстрее загрузка, меньше таймеров |
-| Adaptive Polling | 5–10с вместо 2–5с | ~50% меньше запросов к бэкенду |
-| Chat History Limit | Max 50 сообщений | Ограничение памяти |
-| JSON Parse Robustness | Поддержка ```json блоков | Устранение сбоев AI-парсинга |
-| Double API Fix | Кэширование результата get_all_satellites() | -1 лишний вызов |
+- Object pooling for ISL lines (120 pre-allocated)
+- Throttled ISL computation (every 2nd frame)
+- Throttled raycasting (every 6th frame)
+- Early exit for distant satellite pairs (squared distance)
+- Reduced star count (1500)
+- Adaptive DPR cap [1, 1.5]
+- Batched orbit loading (4 concurrent)
+- Backend polling interval 5–10s
 
 ---
 
-## Исправленные баги
+## Remaining Tasks
 
-- ✅ ai_assistant.py: JSON-парсинг не обрабатывал ```json markdown-блоки от Claude
-- ✅ main.py: `get_all_satellites()` вызывался дважды в `/api/satellites`
-- ✅ Satellites.tsx: неиспользуемые импорты `Mesh`, `useThree`
-- ✅ orbital.py: неиспользуемый import `time`
-- ✅ Chat history: неограниченный рост массива сообщений (добавлен лимит 50)
-- ✅ ISL Links: создание новых BufferGeometry каждый кадр (заменено на object pool)
-
----
-
-## Покрытие ТЗ
-
-```
-Обязательная часть (разделы 3–4):     ~98%
-С бонусными заданиями (раздел 7):     ~90%
-```
-
----
-
-## Оставшиеся задачи
-
-1. Мультиязычность RU/EN (i18n) — ТЗ 7.2
-2. Деплой (Vercel + Railway) — ТЗ 4.2
-3. Скриншоты / видео для презентации — ТЗ 3.8
+1. Deploy (Vercel + Railway)
+2. Screenshots / video for presentation (spec 3.8)
