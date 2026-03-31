@@ -1,12 +1,14 @@
 /**
  * InterSatelliteLinks.tsx
- * Визуализация межспутниковых линий связи (ISL).
- * - Оптимизация: переиспользование геометрий вместо пересоздания каждый кадр
- * - Тултип с расстоянием при наведении на линию (Raycaster + Html)
- * - Поддержка орбитальных плоскостей для виртуальных орбит
+ * Optimized ISL visualization:
+ * - Object pooling with pre-allocated Line objects
+ * - Throttled computation (every 2nd frame)
+ * - Throttled raycasting (every 6th frame)
+ * - Minimal React re-renders via refs
+ * - LOS check (Earth shadow)
  */
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import {
@@ -21,8 +23,9 @@ import type { TLEData } from '../types';
 const EARTH_RADIUS = 6371.0;
 const MU = 398600.4418;
 const SCALE = 1 / EARTH_RADIUS;
+const EARTH_RADIUS_SQ = EARTH_RADIUS * EARTH_RADIUS;
 
-// ── Утилита: виртуальные круговые орбиты с поддержкой плоскостей ────
+// Virtual orbit positions
 function computeVirtualPositions(
   count: number,
   altitudeKm: number,
@@ -32,32 +35,36 @@ function computeVirtualPositions(
   const a = EARTH_RADIUS + altitudeKm;
   const n = Math.sqrt(MU / (a * a * a));
   const incl = (55 * Math.PI) / 180;
+  const cosIncl = Math.cos(incl);
+  const sinIncl = Math.sin(incl);
   const t = simTimeMs / 1000;
   const P = Math.max(1, Math.min(planes, count));
   const satsPerPlane = Math.ceil(count / P);
+  const twoPi = 2 * Math.PI;
 
-  return Array.from({ length: count }, (_, i) => {
+  const result: Array<{ x: number; y: number; z: number }> = new Array(count);
+  for (let i = 0; i < count; i++) {
     const planeIdx = i % P;
     const satInPlane = Math.floor(i / P);
-    const raan = (planeIdx / P) * 2 * Math.PI;
-    const phase = (satInPlane / satsPerPlane) * 2 * Math.PI;
+    const raan = (planeIdx / P) * twoPi;
+    const phase = (satInPlane / satsPerPlane) * twoPi;
     const M = n * t + phase;
     const xOrb = a * Math.cos(M);
     const yOrb = a * Math.sin(M);
-    const xInc = xOrb;
-    const yInc = yOrb * Math.cos(incl);
-    const zInc = yOrb * Math.sin(incl);
+    const yInc = yOrb * cosIncl;
+    const zInc = yOrb * sinIncl;
     const cosR = Math.cos(raan);
     const sinR = Math.sin(raan);
-    return {
-      x: xInc * cosR - yInc * sinR,
-      y: xInc * sinR + yInc * cosR,
+    result[i] = {
+      x: xOrb * cosR - yInc * sinR,
+      y: xOrb * sinR + yInc * cosR,
       z: zInc,
     };
-  });
+  }
+  return result;
 }
 
-// ── LOS-проверка: пересекает ли отрезок AB поверхность Земли ────────
+// LOS check: does segment AB intersect Earth sphere?
 function hasLineOfSight(
   ax: number, ay: number, az: number,
   bx: number, by: number, bz: number
@@ -67,21 +74,21 @@ function hasLineOfSight(
   const dz = bz - az;
   const lenSq = dx * dx + dy * dy + dz * dz;
   if (lenSq === 0) return true;
-  const t = Math.max(0, Math.min(1, -(ax * dx + ay * dy + az * dz) / lenSq));
-  const closestX = ax + t * dx;
-  const closestY = ay + t * dy;
-  const closestZ = az + t * dz;
-  const distSq = closestX * closestX + closestY * closestY + closestZ * closestZ;
-  return distSq >= EARTH_RADIUS * EARTH_RADIUS;
+  const t = -(ax * dx + ay * dy + az * dz) / lenSq;
+  if (t <= 0 || t >= 1) return true; // closest point outside segment
+  const cx = ax + t * dx;
+  const cy = ay + t * dy;
+  const cz = az + t * dz;
+  return (cx * cx + cy * cy + cz * cz) >= EARTH_RADIUS_SQ;
 }
 
-// ── Переиспользуемые материалы ──────────────────────────────────────
+// Reusable materials
 const GREEN_MAT = new LineBasicMaterial({ color: '#00ff88', transparent: true, opacity: 0.85 });
 const RED_MAT = new LineBasicMaterial({ color: '#ff3344', transparent: true, opacity: 0.4 });
 const HOVER_MAT = new LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1.0, linewidth: 2 });
 
-// ── Пул линий для переиспользования ─────────────────────────────────
-const MAX_LINES = 200;
+// Line pool
+const MAX_LINES = 120;
 
 function createLinePool(): Line[] {
   const pool: Line[] = [];
@@ -96,7 +103,6 @@ function createLinePool(): Line[] {
   return pool;
 }
 
-// ── Основной компонент ──────────────────────────────────────────────
 interface InterSatelliteLinksProps {
   tleData: TLEData[];
   satelliteConstellations: Record<number, string>;
@@ -128,8 +134,9 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
   const pointerRef = useRef(new Vector2(-999, -999));
   const { camera, gl } = useThree();
   const frameCountRef = useRef(0);
+  const activeLineCountRef = useRef(0);
 
-  // Инициализация пула линий
+  // Init line pool
   useEffect(() => {
     if (!groupRef.current || poolInitializedRef.current) return;
     const pool = createLinePool();
@@ -138,7 +145,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     poolInitializedRef.current = true;
   }, []);
 
-  // Трекинг указателя мыши
+  // Pointer tracking with passive listener
   useEffect(() => {
     const el = gl.domElement;
     const handleMove = (e: PointerEvent) => {
@@ -149,7 +156,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     const handleLeave = () => {
       pointerRef.current.set(-999, -999);
     };
-    el.addEventListener('pointermove', handleMove);
+    el.addEventListener('pointermove', handleMove, { passive: true });
     el.addEventListener('pointerleave', handleLeave);
     return () => {
       el.removeEventListener('pointermove', handleMove);
@@ -157,7 +164,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     };
   }, [gl]);
 
-  // Предварительно создаём satrec-объекты из TLE
+  // Pre-parse satrec objects
   const satrecsRef = useRef<Array<{
     norad_id: number;
     name: string;
@@ -181,9 +188,21 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
 
     const pool = linePoolRef.current;
     frameCountRef.current++;
+
+    // Throttle link computation to every 2nd frame for performance
+    const shouldCompute = frameCountRef.current % 2 === 0;
+
+    if (!shouldCompute) {
+      // Still do raycasting on some frames
+      if (frameCountRef.current % 6 === 0 && showLinks) {
+        doRaycast(pool, camera);
+      }
+      return;
+    }
+
     const simTime = getSimTime();
 
-    // Скрываем все линии
+    // Hide all lines
     for (let i = 0; i < pool.length; i++) {
       pool[i].visible = false;
     }
@@ -201,8 +220,8 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
       return;
     }
 
-    // Получаем текущие позиции
-    let eciPositions: Array<{ norad_id: number; x: number; y: number; z: number }> = [];
+    // Compute positions
+    let eciPositions: Array<{ norad_id: number; x: number; y: number; z: number }>;
 
     if (orbitAltitudeKm > 0) {
       const virt = computeVirtualPositions(satelliteCount, orbitAltitudeKm, simTime, orbitalPlanes);
@@ -220,12 +239,15 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
         (_, i) => filtered[Math.floor(i * step)]
       );
 
+      eciPositions = [];
       for (const { norad_id, satrec } of selected) {
         const pv = propagate(satrec, now);
         if (!pv.position || typeof pv.position === 'boolean') continue;
         const pos = pv.position as { x: number; y: number; z: number };
         eciPositions.push({ norad_id, x: pos.x, y: pos.y, z: pos.z });
       }
+    } else {
+      eciPositions = [];
     }
 
     if (eciPositions.length < 2) {
@@ -235,21 +257,27 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
 
     let activeCount = 0;
     let lineIdx = 0;
+    const commRangeSq = commRangeKm * commRangeKm;
+    const nearEdgeRangeSq = (commRangeKm * 1.5) * (commRangeKm * 1.5);
     const meta: Array<{ mx: number; my: number; mz: number; distance: number }> = [];
 
     for (let i = 0; i < eciPositions.length; i++) {
+      const a = eciPositions[i];
       for (let j = i + 1; j < eciPositions.length; j++) {
-        const a = eciPositions[i];
         const b = eciPositions[j];
 
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         const dz = a.z - b.z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const distSq = dx * dx + dy * dy + dz * dz;
 
+        // Early exit: skip pairs beyond nearEdge range
+        if (distSq > nearEdgeRangeSq) continue;
+
+        const dist = Math.sqrt(distSq);
         const los = hasLineOfSight(a.x, a.y, a.z, b.x, b.y, b.z);
-        const connected = dist <= commRangeKm && los;
-        const nearEdge = !connected && dist <= commRangeKm * 1.5 && los;
+        const connected = distSq <= commRangeSq && los;
+        const nearEdge = !connected && los;
 
         if ((connected || nearEdge) && lineIdx < pool.length) {
           const ax3 = a.x * SCALE;
@@ -288,6 +316,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
       }
     }
 
+    activeLineCountRef.current = lineIdx;
     linkMetaRef.current = meta;
 
     if (prevLinksRef.current !== activeCount) {
@@ -295,36 +324,45 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
       setActiveLinksCount(activeCount);
     }
 
-    // Raycasting для тултипа (каждый 3-й кадр для производительности)
-    if (frameCountRef.current % 3 === 0) {
-      raycasterRef.current.setFromCamera(pointerRef.current, camera);
-      raycasterRef.current.params.Line = { threshold: 0.03 };
-
-      const visibleLines = pool.filter((l) => l.visible);
-      const intersects = raycasterRef.current.intersectObjects(visibleLines, false);
-
-      let newIdx = -1;
-      if (intersects.length > 0) {
-        const hit = intersects[0];
-        const idx = hit.object.userData?.linkIndex;
-        if (idx !== undefined && meta[idx]) {
-          newIdx = idx;
-          // Подсветка линии
-          (hit.object as Line).material = HOVER_MAT;
-        }
-      }
-
-      if (newIdx !== hoveredIdxRef.current) {
-        hoveredIdxRef.current = newIdx;
-        if (newIdx >= 0 && meta[newIdx]) {
-          const m = meta[newIdx];
-          setTooltip({ position: new Vector3(m.mx, m.my, m.mz), distance: m.distance });
-        } else {
-          setTooltip(null);
-        }
-      }
+    // Raycast on computation frames (every 6th overall)
+    if (frameCountRef.current % 6 === 0) {
+      doRaycast(pool, camera);
     }
   });
+
+  const doRaycast = useCallback((pool: Line[], cam: typeof camera) => {
+    raycasterRef.current.setFromCamera(pointerRef.current, cam);
+    raycasterRef.current.params.Line = { threshold: 0.03 };
+
+    const visibleLines: Line[] = [];
+    const count = activeLineCountRef.current;
+    for (let i = 0; i < count && i < pool.length; i++) {
+      if (pool[i].visible) visibleLines.push(pool[i]);
+    }
+
+    const intersects = raycasterRef.current.intersectObjects(visibleLines, false);
+    const meta = linkMetaRef.current;
+
+    let newIdx = -1;
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      const idx = hit.object.userData?.linkIndex;
+      if (idx !== undefined && meta[idx]) {
+        newIdx = idx;
+        (hit.object as Line).material = HOVER_MAT;
+      }
+    }
+
+    if (newIdx !== hoveredIdxRef.current) {
+      hoveredIdxRef.current = newIdx;
+      if (newIdx >= 0 && meta[newIdx]) {
+        const m = meta[newIdx];
+        setTooltip({ position: new Vector3(m.mx, m.my, m.mz), distance: m.distance });
+      } else {
+        setTooltip(null);
+      }
+    }
+  }, []);
 
   return (
     <>
@@ -351,7 +389,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
             }}
           >
             <span style={{ color: '#00ff88', marginRight: '4px' }}>●</span>
-            {tooltip.distance.toFixed(1)} км
+            {tooltip.distance.toFixed(1)} {useStore.getState().lang === 'ru' ? 'км' : 'km'}
           </div>
         </Html>
       )}

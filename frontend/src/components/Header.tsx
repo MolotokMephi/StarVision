@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useStore } from '../hooks/useStore';
+import { t } from '../i18n';
+import type { Lang } from '../i18n';
 
 interface HeaderProps {
   satelliteCount: number;
@@ -8,6 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ satelliteCount, activeCount, timeSpeed, activeLinksCount }: HeaderProps) {
+  const { lang, setLang } = useStore();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -20,8 +24,8 @@ export function Header({ satelliteCount, activeCount, timeSpeed, activeLinksCoun
   return (
     <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
       <div className="flex items-center justify-between px-4 py-3">
-        {/* Логотип */}
-        <div className="pointer-events-auto flex items-center gap-3 ml-4">
+        {/* Logo — offset to avoid overlap with control panel */}
+        <div className="pointer-events-auto flex items-center gap-3 ml-[310px]">
           <div className="relative">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-star-500 via-star-600 to-star-800 flex items-center justify-center shadow-lg shadow-star-600/30">
               <span className="text-white font-display font-extrabold text-sm">SV</span>
@@ -33,35 +37,70 @@ export function Header({ satelliteCount, activeCount, timeSpeed, activeLinksCoun
               StarVision
             </h1>
             <p className="text-[9px] text-star-500 font-mono tracking-wider">
-              ЦИФРОВОЙ ДВОЙНИК ГРУППИРОВКИ
+              {t('header.subtitle', lang)}
             </p>
           </div>
         </div>
 
         <div className="flex-1" />
 
-        {/* Статус-бар */}
-        <div className="pointer-events-auto flex items-center gap-4 glass-panel px-4 py-2 mr-4">
-          <StatusItem label="UTC" value={utcStr} />
-          <Divider />
-          <StatusItem label="КА" value={`${activeCount}/${satelliteCount}`} />
-          <Divider />
-          <StatusItem label="Скорость" value={`${timeSpeed}×`} />
-          <Divider />
-          <StatusItem
-            label="МСС"
-            value={`${activeLinksCount}`}
-            valueClass={activeLinksCount > 0 ? 'text-green-400' : 'text-star-600'}
-          />
-          <Divider />
-          <StatusItem
-            label="Статус"
-            value="ОНЛАЙН"
-            valueClass="text-green-400"
-          />
+        {/* Language switcher + Status bar */}
+        <div className="pointer-events-auto flex items-center gap-3 mr-4">
+          {/* Language switcher */}
+          <div className="flex items-center gap-0.5 glass-panel px-1.5 py-1">
+            <LangButton current={lang} value="ru" label="RU" onClick={setLang} />
+            <LangButton current={lang} value="en" label="EN" onClick={setLang} />
+          </div>
+
+          {/* Status bar */}
+          <div className="flex items-center gap-4 glass-panel px-4 py-2">
+            <StatusItem label={t('header.utc', lang)} value={utcStr} />
+            <Divider />
+            <StatusItem label={t('header.spacecraft', lang)} value={`${activeCount}/${satelliteCount}`} />
+            <Divider />
+            <StatusItem label={t('header.speed', lang)} value={`${timeSpeed}×`} />
+            <Divider />
+            <StatusItem
+              label={t('header.isl', lang)}
+              value={`${activeLinksCount}`}
+              valueClass={activeLinksCount > 0 ? 'text-green-400' : 'text-star-600'}
+            />
+            <Divider />
+            <StatusItem
+              label={t('header.status', lang)}
+              value={t('header.online', lang)}
+              valueClass="text-green-400"
+            />
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function LangButton({
+  current,
+  value,
+  label,
+  onClick,
+}: {
+  current: Lang;
+  value: Lang;
+  label: string;
+  onClick: (lang: Lang) => void;
+}) {
+  const isActive = current === value;
+  return (
+    <button
+      onClick={() => onClick(value)}
+      className={`text-[10px] font-mono px-2 py-0.5 rounded-md transition-all ${
+        isActive
+          ? 'bg-star-600/40 text-star-100 border border-star-500/40'
+          : 'text-star-500 hover:text-star-300 border border-transparent'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

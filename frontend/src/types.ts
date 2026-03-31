@@ -42,6 +42,9 @@ export interface OrbitPoint {
 // ── UI State ────────────────────────────────────────────────────────
 
 export interface AppState {
+  // Language
+  lang: 'ru' | 'en';
+
   // Данные
   satellites: SatelliteData[];
   positions: SatellitePosition[];
@@ -71,6 +74,7 @@ export interface AppState {
   chatLoading: boolean;
 
   // Actions
+  setLang: (lang: 'ru' | 'en') => void;
   setTimeSpeed: (speed: number) => void;
   setShowOrbits: (show: boolean) => void;
   setShowLabels: (show: boolean) => void;

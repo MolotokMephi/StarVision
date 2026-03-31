@@ -264,8 +264,8 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
       <directionalLight position={[0, 5, -3]} intensity={0.4} color="#ffffff" />
       <pointLight position={[0, 0, 0]} intensity={0.15} color="#5599dd" distance={10} />
 
-      {/* Звёзды */}
-      <Stars radius={100} depth={80} count={2500} factor={3} saturation={0.1} fade speed={0.5} />
+      {/* Stars — reduced count for performance */}
+      <Stars radius={100} depth={80} count={1500} factor={3} saturation={0.1} fade speed={0.5} />
 
       {/* Земля с NASA Blue Marble */}
       <Earth timeSpeed={timeSpeed} />
