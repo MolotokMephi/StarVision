@@ -102,14 +102,17 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                     for nid, tle in result.items():
                         if nid in target_set:
                             all_tle[nid] = tle
-
     # Обновляем кэш
     if all_tle:
         _tle_cache.update(all_tle)
         _cache_timestamp = now
+        return {nid: all_tle[nid] for nid in norad_ids if nid in all_tle}
+    # Сеть упала — отдаём устаревший кэш если он есть
+    if _tle_cache:
+        logger.warning("CelesTrak unavailable, using stale cache")
+        return {nid: _tle_cache[nid] for nid in norad_ids if nid in _tle_cache}
 
-    return {nid: all_tle[nid] for nid in norad_ids if nid in all_tle}
-
+    return {}
 
 async def _fetch_url(client: httpx.AsyncClient, url: str) -> Dict[int, Tuple[str, str]]:
     """Загрузить и разобрать TLE с одного URL."""
