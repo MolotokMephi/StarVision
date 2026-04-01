@@ -1,4 +1,4 @@
-# StarVision — CubeSat Constellation Digital Twin
+# StarVision v1.2 — CubeSat Constellation Digital Twin
 
 > **Hackathon: Digital Twins of Space Systems**
 > Interactive 3D prototype of a CubeSat constellation digital twin
