@@ -229,7 +229,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     if (orbitAltitudeKm > 0) {
       const constellationKeys = Object.keys(satelliteConstellations).length > 0
         ? Object.values(satelliteConstellations).filter((v, i, a) => a.indexOf(v) === i)
-        : ['Сфера', 'Образовательные', 'Гонец', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
+        : ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
       const virt = computeVirtualPositions(satelliteCount, orbitAltitudeKm, simTime, orbitalPlanes);
       eciPositions = virt
         .map((p, i) => ({

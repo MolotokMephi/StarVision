@@ -34,7 +34,7 @@ RESPONSE FORMAT — strictly JSON:
     // {{"type": "set_time_speed", "speed": 10}}
     // {{"type": "toggle_orbits", "visible": true}}
     // {{"type": "toggle_links", "visible": true}}
-    // {{"type": "highlight_constellation", "name": "Сфера"}}
+    // {{"type": "highlight_constellation", "name": "УниверСат"}}
     // {{"type": "set_satellite_count", "count": 10}}
     // {{"type": "set_comm_range", "range_km": 800}}
     // {{"type": "set_orbit_altitude", "altitude_km": 600}}
@@ -42,14 +42,13 @@ RESPONSE FORMAT — strictly JSON:
   ]
 }}
 
-Russian satellites in the system (NORAD ID):
-- Sfera constellation: Skif-D (56200), Marathon-IoT-1 (56201), Marathon-IoT-2 (56202), Marathon-IoT-3 (56203)
-- Educational: SiriusSat-1 (44394), SiriusSat-2 (44395), Tanyusha-YuZGU-1 (44396)
-- MIPT: Dekart (49260)
-- Bauman MSTU: UmKA-1 (47951)
-- Gonets constellation: Gonets-M #21 (40553), Gonets-M #22 (40554), Gonets-M #23 (40555)
-- Earth Observation: Zorkiy-2M (48850), Berkut-S (55120)
-- Scientific: Aist-2T (55121)
+Russian CubeSats in the system (NORAD ID):
+- UniverSat program: Dekart (46493), NORBI (46494), NORBI-2 (57179), SamSat-Ionosphere (61784)
+- Bauman MSTU: Yarilo-1 (46490), UmKA-1 (57172), Yarilo-3 (57198)
+- SPUTNIX/HSE: CubeSX-HSE (47952), CubeSX-HSE-3 (57178)
+- Geoscan: Geoscan-Edelveis (53385, deorbited)
+- SINP MSU: Monitor-2 (57184)
+- Space-Pi: TUSUR GO (61782), RTU MIREA-1 (61785), Horizont (61757), ASRTU-1 (61781)
 
 {lang_instruction}
 Be friendly, informative, and passionate about space.
@@ -182,153 +181,150 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Программа Сфера ──────────────────────────────────
-    if any(w in msg_lower for w in ["сфера", "скиф", "марафон", "sfera", "marathon"]):
-        if any(w in msg_lower for w in ["марафон", "marathon"]):
+    # ── УниверСат ─────────────────────────────────────────
+    if any(w in msg_lower for w in ["универсат", "universat", "норби", "norbi"]):
+        return {
+            "message": (
+                "UniverSat is a Roscosmos program for university CubeSats. "
+                "Our model includes: Dekart (MSU, radiation & ADS-B), NORBI/NORBI-2 (NSU, EO & AIS), "
+                "SamSat-Ionosphere (Samara Univ., ionosphere sounding). Showing UniverSat constellation."
+                if en else
+                "«УниверСат» — программа Роскосмоса по запуску университетских кубсатов. "
+                "В нашей модели: Декарт (МГУ, радиация и ADS-B), НОРБИ/НОРБИ-2 (НГУ, ДЗЗ и AIS), "
+                "СамСат-Ионосфера (Самарский ун-т, зондирование ионосферы). Показываю группу."
+            ),
+            "actions": [{"type": "highlight_constellation", "name": "УниверСат"}],
+        }
+
+    # ── Декарт ───────────────────────────────────────────
+    if any(w in msg_lower for w in ["декарт", "dekart"]):
+        return {
+            "message": (
+                "Dekart is a 3U CubeSat (~4 kg) by SINP MSU. "
+                "Monitors radiation on polar orbits and receives ADS-B signals. "
+                "NORAD 46493, launched 2020-09-28. Showing."
+                if en else
+                "«Декарт» — кубсат 3U (~4 кг) НИИЯФ МГУ. "
+                "Мониторинг радиационной обстановки на полярных орбитах и приём ADS-B. "
+                "NORAD 46493, запущен 2020-09-28. Показываю."
+            ),
+            "actions": [{"type": "focus_satellite", "norad_id": 46493}],
+        }
+
+    # ── Баумана / УмКА / Ярило ───────────────────────────
+    if any(w in msg_lower for w in ["бауман", "умка", "мгту", "ярило", "bauman", "umka", "yarilo"]):
+        if any(w in msg_lower for w in ["ярило", "yarilo"]):
             return {
                 "message": (
-                    "Marathon-IoT is a subsystem of the Sfera program for the Internet of Things (IoT/M2M). "
-                    "6U-format satellites provide data transmission from sensors, meters and industrial devices. "
-                    "Our model includes two spacecraft: Marathon-IoT-1 and Marathon-IoT-2. Showing the first one."
+                    "Yarilo — a series of CubeSats by Bauman MSTU for solar physics research. "
+                    "Yarilo-1 (1.5U, NORAD 46490) and Yarilo-3 (3U, NORAD 57198) measure "
+                    "solar energy reflected by Earth and the magnetic field. Showing Yarilo-3."
                     if en else
-                    "«Марафон-IoT» — подсистема программы «Сфера» для Интернета вещей (IoT/M2M). "
-                    "Спутники формата 6U обеспечивают передачу данных от датчиков, "
-                    "счётчиков и промышленных устройств. В нашей модели два аппарата: "
-                    "Марафон-IoT-1 и Марафон-IoT-2. Показываю первый."
+                    "Ярило — серия кубсатов МГТУ Баумана для исследования Солнца. "
+                    "Ярило-1 (1.5U, NORAD 46490) и Ярило-3 (3U, NORAD 57198) измеряют "
+                    "солнечную энергию и магнитное поле. Показываю Ярило-3."
                 ),
-                "actions": [{"type": "focus_satellite", "norad_id": 56201}],
+                "actions": [{"type": "focus_satellite", "norad_id": 57198}],
             }
         return {
             "message": (
-                "The Sfera program is an ambitious Russian multi-functional satellite constellation project. "
-                "It includes subsystems:\n"
-                "• Skif — broadband internet (Starlink analogue)\n"
-                "• Marathon — IoT/M2M communications\n"
-                "• Express-RV — relay\n"
-                "Skif-D is a demonstration spacecraft launched in 2022 into ~550 km orbit. "
-                "Showing the Sfera constellation."
+                "Bauman MSTU CubeSats in our model:\n"
+                "• UmKA-1 (3U, ~4 kg) — technology demonstrator, NORAD 57172\n"
+                "• Yarilo-1 (1.5U, ~2 kg) — solar research, NORAD 46490\n"
+                "• Yarilo-3 (3U, ~4 kg) — solar physics, magnetometry, NORAD 57198\n"
+                "Showing UmKA-1."
                 if en else
-                "Программа «Сфера» — амбициозный российский проект многофункциональной "
-                "спутниковой группировки. Включает подсистемы:\n"
-                "• «Скиф» — широкополосный интернет (аналог Starlink)\n"
-                "• «Марафон» — IoT/M2M связь\n"
-                "• «Экспресс-РВ» — ретрансляция\n"
-                "Скиф-Д — демонстрационный аппарат, запущенный в 2022 году на орбиту ~550 км. "
-                "Показываю группировку «Сфера»."
+                "Кубсаты МГТУ Баумана в нашей модели:\n"
+                "• УмКА-1 (3U, ~4 кг) — технологический демонстратор, NORAD 57172\n"
+                "• Ярило-1 (1.5U, ~2 кг) — исследование Солнца, NORAD 46490\n"
+                "• Ярило-3 (3U, ~4 кг) — солнечная физика, магнитометрия, NORAD 57198\n"
+                "Показываю УмКА-1."
             ),
             "actions": [
-                {"type": "highlight_constellation", "name": "Сфера"},
-                {"type": "focus_satellite", "norad_id": 56200},
+                {"type": "highlight_constellation", "name": "МГТУ Баумана"},
+                {"type": "focus_satellite", "norad_id": 57172},
             ],
         }
 
-    # ── Гонец ────────────────────────────────────────────
-    if any(w in msg_lower for w in ["гонец", "gonets"]):
+    # ── SPUTNIX / CubeSX / ВШЭ ──────────────────────────
+    if any(w in msg_lower for w in ["sputnix", "спутникс", "вшэ", "hse", "cubesx"]):
         return {
             "message": (
-                "Gonets-M is a Russian low-orbit personal satellite communication system. "
-                "It provides short message and data transmission anywhere in the world, including the Arctic. "
-                "Orbit inclination ~82.5° ensures polar coverage. "
-                "Our model includes 3 spacecraft: #21, #22, #23. Showing the constellation."
+                "CubeSX-HSE — a series of 3U CubeSats developed by SPUTNIX and HSE University. "
+                "CubeSX-HSE (NORAD 47952) and CubeSX-HSE-3 (NORAD 57178) carry experimental "
+                "cameras with Fresnel lenses and X-band transmitters. Showing CubeSX-HSE."
                 if en else
-                "«Гонец-М» — российская низкоорбитальная система персональной "
-                "спутниковой связи. Обеспечивает передачу коротких сообщений "
-                "и данных в любой точке мира, включая Арктику. "
-                "Орбита ~82.5°, что обеспечивает полярное покрытие. "
-                "В нашей модели 3 аппарата: №21, №22, №23. Показываю группировку."
-            ),
-            "actions": [{"type": "highlight_constellation", "name": "Гонец"}],
-        }
-
-    # ── Образовательные / Сириус ─────────────────────────
-    if any(w in msg_lower for w in ["сириус", "образовани", "школьник", "наноспутник", "sirius", "educational", "nanosatellite"]):
-        return {
-            "message": (
-                "SiriusSat — two 1U nanosatellites (10×10×10 cm, ~1.5 kg), "
-                "created by students of the Sirius center together with RSC Energia. "
-                "Launched in 2018 from the ISS for radiation monitoring "
-                "and cosmic ray research. Showing SiriusSat-1."
-                if en else
-                "СириусСат — два наноспутника формата 1U (10×10×10 см, ~1.5 кг), "
-                "созданные школьниками центра «Сириус» совместно с РКК «Энергия». "
-                "Запущены в 2018 году с МКС для мониторинга радиационной обстановки "
-                "и изучения космических лучей. Показываю СириусСат-1."
+                "CubeSX-HSE — серия кубсатов 3U, разработанных SPUTNIX и ВШЭ. "
+                "CubeSX-HSE (NORAD 47952) и CubeSX-HSE-3 (NORAD 57178) несут экспериментальные "
+                "камеры на линзах Френеля и передатчики X-диапазона. Показываю CubeSX-HSE."
             ),
             "actions": [
-                {"type": "highlight_constellation", "name": "Образовательные"},
-                {"type": "focus_satellite", "norad_id": 44394},
+                {"type": "highlight_constellation", "name": "SPUTNIX"},
+                {"type": "focus_satellite", "norad_id": 47952},
             ],
         }
 
-    # ── МФТИ / Декарт ────────────────────────────────────
-    if any(w in msg_lower for w in ["мфти", "декарт", "физтех", "mipt", "dekart"]):
+    # ── Геоскан ──────────────────────────────────────────
+    if any(w in msg_lower for w in ["геоскан", "эдельвейс", "geoscan", "edelveis"]):
         return {
             "message": (
-                "Dekart is a 12U satellite by MIPT (mass ~50 kg). "
-                "Designed for scientific experiments and Earth remote sensing. "
-                "Launched in 2021. Showing."
+                "Geoscan-Edelveis is the first private nanosatellite from St. Petersburg (3U, ~4 kg). "
+                "Flight tests of the Geoscan-3U platform with a gas thruster by OKB Fakel. "
+                "NORAD 53385. Deorbited 2024-02-18 after 558 days in orbit. Showing."
                 if en else
-                "«Декарт» — спутник МФТИ формата 12U (масса ~50 кг). "
-                "Предназначен для научных экспериментов и дистанционного "
-                "зондирования Земли. Запущен в 2021 году. Показываю."
+                "Геоскан-Эдельвейс — первый частный наноспутник из Санкт-Петербурга (3U, ~4 кг). "
+                "Лётные испытания платформы Геоскан-3U с газовым двигателем ОКБ «Факел». "
+                "NORAD 53385. Сведён с орбиты 2024-02-18 после 558 дней полёта. Показываю."
             ),
-            "actions": [{"type": "focus_satellite", "norad_id": 49260}],
+            "actions": [{"type": "focus_satellite", "norad_id": 53385}],
         }
 
-    # ── Баумана / УмКА ───────────────────────────────────
-    if any(w in msg_lower for w in ["бауман", "умка", "мгту", "bauman", "umka"]):
+    # ── Монитор / НИИЯФ ─────────────────────────────────
+    if any(w in msg_lower for w in ["монитор", "ниияф", "monitor", "sinp", "кодиз", "kodiz"]):
         return {
             "message": (
-                "UmKA-1 is a 3U cubesat (~3 kg), developed by Bauman MSTU students. "
-                "A technology demonstrator launched in 2021. Showing."
+                "Monitor-2 is a 3U CubeSat by SINP MSU for X-ray and gamma-ray observations "
+                "of cosmic flares. KODIZ detector onboard. NORAD 57184, launched 2023-06-27. Showing."
                 if en else
-                "УмКА-1 — кубсат формата 3U (~3 кг), разработанный "
-                "студентами МГТУ им. Баумана. Технологический демонстратор, "
-                "запущенный в 2021 году. Показываю."
+                "Монитор-2 — кубсат 3U НИИЯФ МГУ для наблюдения космических вспышек "
+                "в рентгеновском и гамма-диапазоне. Детектор КОДИЗ на борту. "
+                "NORAD 57184, запущен 2023-06-27. Показываю."
             ),
-            "actions": [{"type": "focus_satellite", "norad_id": 47951}],
+            "actions": [{"type": "focus_satellite", "norad_id": 57184}],
         }
 
-    # ── ДЗЗ / Зоркий / Беркут ───────────────────────────
-    if any(w in msg_lower for w in ["зоркий", "дзз", "зондирован", "съёмк", "беркут", "спутникс", "zorkiy", "berkut", "earth observation"]):
-        if any(w in msg_lower for w in ["беркут", "berkut"]):
-            return {
-                "message": (
-                    "Berkut-S is a very high resolution satellite for cartography "
-                    "and monitoring. Mass ~200 kg. Launched in 2023."
-                    if en else
-                    "«Беркут-С» — спутник сверхвысокого разрешения для картографии "
-                    "и мониторинга. Масса ~200 кг. Запущен в 2023 году."
-                ),
-                "actions": [{"type": "focus_satellite", "norad_id": 55120}],
-            }
+    # ── Space-Pi ─────────────────────────────────────────
+    if any(w in msg_lower for w in ["space-pi", "spacepi", "space pi", "тусур", "tusur", "мирэа", "mirea", "горизонт", "horizont", "asrtu"]):
         return {
             "message": (
-                "Earth Observation satellites in our model:\n"
-                "• Zorkiy-2M (Sputnix) — commercial EO satellite, ~130 kg\n"
-                "• Berkut-S — high-detail imaging, ~200 kg\n"
-                "Showing EO group."
+                "Space-Pi is a Russian educational CubeSat program. Our model includes:\n"
+                "• TUSUR GO (NORAD 61782) — Tomsk\n"
+                "• RTU MIREA-1 (NORAD 61785) — Moscow\n"
+                "• Horizont (NORAD 61757)\n"
+                "• ASRTU-1 (NORAD 61781)\n"
+                "All launched 2024-11-05 into SSO ~550 km. Showing Space-Pi."
                 if en else
-                "Спутники ДЗЗ (дистанционного зондирования Земли) в нашей модели:\n"
-                "• Зоркий-2М (Спутникс) — коммерческий спутник ДЗЗ, ~130 кг\n"
-                "• Беркут-С — высокодетальная съёмка, ~200 кг\n"
-                "Показываю группу ДЗЗ."
+                "Space-Pi — российская образовательная программа кубсатов. В нашей модели:\n"
+                "• TUSUR GO (NORAD 61782) — ТУСУР, Томск\n"
+                "• RTU MIREA-1 (NORAD 61785) — РТУ МИРЭА, Москва\n"
+                "• Горизонт (NORAD 61757)\n"
+                "• ASRTU-1 (NORAD 61781)\n"
+                "Все запущены 2024-11-05 на ССО ~550 км. Показываю Space-Pi."
             ),
-            "actions": [{"type": "highlight_constellation", "name": "ДЗЗ"}],
+            "actions": [{"type": "highlight_constellation", "name": "Space-Pi"}],
         }
 
-    # ── Аист / Научные ───────────────────────────────────
-    if any(w in msg_lower for w in ["аист", "научн", "прогресс", "самар", "aist", "scientific"]):
+    # ── СамСат ───────────────────────────────────────────
+    if any(w in msg_lower for w in ["самсат", "самар", "ионосфер", "samsat", "samara", "ionospher"]):
         return {
             "message": (
-                "Aist-2T is a small spacecraft (~530 kg), developed by RSC Progress "
-                "together with SSAU (Samara). Designed for scientific experiments and EO. Showing."
+                "SamSat-Ionosphere is a 3U CubeSat by Samara University for ionosphere research. "
+                "Part of the UniverSat program. NORAD 61784, launched 2024-11-05. Showing."
                 if en else
-                "«Аист-2Т» — малый космический аппарат (~530 кг), "
-                "разработанный РКЦ «Прогресс» совместно с СГАУ (Самара). "
-                "Предназначен для научных экспериментов и ДЗЗ. Показываю."
+                "СамСат-Ионосфера — кубсат 3U Самарского университета для исследования ионосферы. "
+                "Часть программы «УниверСат». NORAD 61784, запущен 2024-11-05. Показываю."
             ),
-            "actions": [{"type": "focus_satellite", "norad_id": 55121}],
+            "actions": [{"type": "focus_satellite", "norad_id": 61784}],
         }
 
     # ── Управление скоростью ─────────────────────────────
@@ -577,9 +573,8 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 "• Starlink (SpaceX): ~5000+ спутников, 550 км, ШПД\n"
                 "• OneWeb: ~600 спутников, 1200 км, ШПД\n"
                 "• Сфера (Россия): планируется 600+ КА, связь + IoT + ДЗЗ\n"
-                "• Гонец-М: ~12 спутников, 1500 км, персональная связь\n\n"
-                "Российские группировки отличаются акцентом на полярное покрытие "
-                "и комплексность (связь + IoT + наблюдение)."
+                "• УниверСат / Space-Pi: образовательные кубсаты российских вузов\n\n"
+                "В нашей модели — 15 реальных российских кубсатов на ССО ~500–550 км."
             ),
             "actions": [],
         }
@@ -646,8 +641,8 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 "✦ Reset everything: 'Reset'"
                 if en else
                 "Вот что я умею:\n"
-                "✦ Рассказать о спутниках: «Расскажи про Сферу», «Что такое Гонец?»\n"
-                "✦ Показать спутник: «Покажи Скиф-Д», «Где Декарт?»\n"
+                "✦ Рассказать о спутниках: «Расскажи про УмКА-1», «Что такое УниверСат?»\n"
+                "✦ Показать спутник: «Покажи Декарт», «Где Ярило-3?»\n"
                 "✦ Управлять скоростью: «Ускорь в 50 раз», «Замедли»\n"
                 "✦ Управлять связями: «Покажи связи», «Установи дальность 1000 км»\n"
                 "✦ Менять орбиты: «Высота 600 км», «Установи 10 спутников»\n"
@@ -762,7 +757,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "✦ Показать спутник на визуализации\n"
             "✦ Управлять скоростью, орбитами и связями\n"
             "✦ Объяснить орбитальную механику и TLE\n\n"
-            "Попробуй: «Расскажи про Сферу», «Покажи Гонец», "
+            "Попробуй: «Расскажи про УмКА-1», «Покажи Space-Pi», "
             "«Ускорь в 50 раз» или «Что такое кубсат?»"
         ),
         "actions": [],

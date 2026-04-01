@@ -21,7 +21,7 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
     () => {
       if (!selectedSatellite) return undefined;
       if (isVirtual) {
-        const CONSTELLATIONS = ['Сфера', 'Образовательные', 'Гонец', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
+        const CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
         const idx = selectedSatellite - 90000;
         return {
           norad_id: selectedSatellite,

@@ -20,6 +20,7 @@ export default function App() {
     satelliteCount,
     orbitAltitudeKm,
     activeConstellations,
+    tleSource,
   } = useStore();
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -43,12 +44,12 @@ export default function App() {
   const loadPositions = useCallback(async () => {
     try {
       const simTimestamp = new Date(getSimTime()).toISOString();
-      const res = await fetchPositions(simTimestamp);
+      const res = await fetchPositions(simTimestamp, tleSource);
       setPositions(res.positions);
     } catch (err) {
       console.error('Position fetch error:', err);
     }
-  }, []);
+  }, [tleSource]);
 
   useEffect(() => {
     loadPositions();
@@ -64,11 +65,11 @@ export default function App() {
   // Загрузка орбит при выборе спутника (пропускаем виртуальные NORAD 90000+)
   useEffect(() => {
     if (selectedSatellite && selectedSatellite < 90000 && !orbitPaths[selectedSatellite]) {
-      fetchOrbitPath(selectedSatellite, 180, 60)
+      fetchOrbitPath(selectedSatellite, 180, 60, tleSource)
         .then((res) => setOrbitPath(res.norad_id, res.path))
         .catch(console.error);
     }
-  }, [selectedSatellite]);
+  }, [selectedSatellite, tleSource]);
 
   // Предзагрузка орбит для всех спутников (батчами по 4 для снижения нагрузки)
   useEffect(() => {
@@ -82,7 +83,7 @@ export default function App() {
         const batch = toLoad.slice(i, i + batchSize);
         await Promise.allSettled(
           batch.map((sat) =>
-            fetchOrbitPath(sat.norad_id, 120, 60)
+            fetchOrbitPath(sat.norad_id, 120, 60, tleSource)
               .then((res) => setOrbitPath(res.norad_id, res.path))
           )
         );
@@ -103,7 +104,7 @@ export default function App() {
   const displayedCount = useMemo(() => {
     if (orbitAltitudeKm > 0) {
       // Virtual mode: all satelliteCount are "active", filtered by constellations
-      const CONSTELLATIONS = ['Сфера', 'Образовательные', 'Гонец', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
+      const CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
       let count = 0;
       for (let i = 0; i < satelliteCount; i++) {
         if (activeConstellations.includes(CONSTELLATIONS[i % CONSTELLATIONS.length])) count++;

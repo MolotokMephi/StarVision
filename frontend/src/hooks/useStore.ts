@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { AppState, SatelliteData, SatellitePosition, OrbitPoint, ChatMessage, TLEData } from '../types';
 
-const ALL_CONSTELLATIONS = ['Сфера', 'Гонец', 'Образовательные', 'ДЗЗ', 'Научные', 'МФТИ', 'МГТУ им. Баумана'];
+const ALL_CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
 
 export const useStore = create<AppState>((set) => ({
   // Language

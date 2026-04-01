@@ -78,8 +78,8 @@ export const translations = {
   },
   'chat.actionDone_one': { ru: 'действие выполнено', en: 'action executed' },
   'chat.actionDone_many': { ru: 'действий выполнено', en: 'actions executed' },
-  'chat.hint1': { ru: 'Расскажи про Сферу', en: 'Tell me about Sfera' },
-  'chat.hint2': { ru: 'Покажи Гонец-М', en: 'Show Gonets-M' },
+  'chat.hint1': { ru: 'Расскажи про УмКА-1', en: 'Tell me about UmKA-1' },
+  'chat.hint2': { ru: 'Покажи Декарт', en: 'Show Dekart' },
   'chat.hint3': { ru: 'Ускорь время в 50 раз', en: 'Speed up time 50x' },
   'chat.hint4': { ru: 'Сколько активных связей?', en: 'How many active links?' },
   'chat.hint5': { ru: 'Покажи все орбиты', en: 'Show all orbits' },
@@ -89,26 +89,24 @@ export const translations = {
   'isl.distance': { ru: 'км', en: 'km' },
 
   // Constellation names
-  'constellation.sfera': { ru: 'Сфера', en: 'Sfera' },
-  'constellation.gonets': { ru: 'Гонец', en: 'Gonets' },
-  'constellation.educational': { ru: 'Образовательные', en: 'Educational' },
-  'constellation.dzz': { ru: 'ДЗЗ', en: 'EO' },
-  'constellation.scientific': { ru: 'Научные', en: 'Scientific' },
-  'constellation.mipt': { ru: 'МФТИ', en: 'MIPT' },
-  'constellation.bauman': { ru: 'МГТУ им. Баумана', en: 'Bauman MSTU' },
+  'constellation.universat': { ru: 'УниверСат', en: 'UniverSat' },
+  'constellation.bauman': { ru: 'МГТУ Баумана', en: 'Bauman MSTU' },
+  'constellation.sputnix': { ru: 'SPUTNIX', en: 'SPUTNIX' },
+  'constellation.geoscan': { ru: 'Геоскан', en: 'Geoscan' },
+  'constellation.sinp': { ru: 'НИИЯФ МГУ', en: 'SINP MSU' },
+  'constellation.spacepi': { ru: 'Space-Pi', en: 'Space-Pi' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;
 
 // Constellation key mapping (internal Russian name -> i18n key)
 export const CONSTELLATION_KEYS: Record<string, string> = {
-  'Сфера': 'constellation.sfera',
-  'Гонец': 'constellation.gonets',
-  'Образовательные': 'constellation.educational',
-  'ДЗЗ': 'constellation.dzz',
-  'Научные': 'constellation.scientific',
-  'МФТИ': 'constellation.mipt',
-  'МГТУ им. Баумана': 'constellation.bauman',
+  'УниверСат': 'constellation.universat',
+  'МГТУ Баумана': 'constellation.bauman',
+  'SPUTNIX': 'constellation.sputnix',
+  'Геоскан': 'constellation.geoscan',
+  'НИИЯФ МГУ': 'constellation.sinp',
+  'Space-Pi': 'constellation.spacepi',
 };
 
 // Reverse mapping: get internal name from localized display name
