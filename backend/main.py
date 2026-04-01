@@ -23,7 +23,7 @@ from celestrak import get_tle_by_source, invalidate_cache
 app = FastAPI(
     title="StarVision API",
     description="API цифрового двойника группировки российских кубсатов",
-    version="1.0.0",
+    version="1.2.0",
 )
 
 app.add_middleware(
@@ -59,7 +59,7 @@ class SimulationParams(BaseModel):
 async def root():
     return {
         "project": "StarVision",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "description": "Цифровой двойник группировки российских кубсатов",
     }
 
