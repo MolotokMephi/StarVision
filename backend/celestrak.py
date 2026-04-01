@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 # URL-ы CelesTrak для получения TLE
 CELESTRAK_URLS = [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=russian&FORMAT=tle",
 ]
 
 # Кэш TLE-данных: norad_id -> (tle_line1, tle_line2)
