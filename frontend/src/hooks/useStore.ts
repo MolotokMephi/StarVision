@@ -26,7 +26,7 @@ export const useStore = create<AppState>((set) => ({
   activeConstellations: [...ALL_CONSTELLATIONS],
   satelliteCount: 15,
   orbitAltitudeKm: 0,
-  commRangeKm: 500,
+  commRangeKm: 3000,
   activeLinksCount: 0,
   orbitalPlanes: 3,
 
@@ -86,7 +86,7 @@ export const useStore = create<AppState>((set) => ({
       activeConstellations: [...ALL_CONSTELLATIONS],
       satelliteCount: 15,
       orbitAltitudeKm: 0,
-      commRangeKm: 500,
+      commRangeKm: 3000,
       orbitalPlanes: 3,
     }),
 }));

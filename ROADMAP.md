@@ -12,7 +12,7 @@
 |---|---|---|
 | Study existing multi-satellite constellations (Starlink, OneWeb, Sphere, cubesat) | ✅ Done | 15-SC Russian catalog: Сфера, Гонец, ДЗЗ, Образовательные, Научные, МФТИ, МГТУ |
 | Determine typical orbital parameters | ✅ Done | LEO 400–2000 km, incl. 55°, SGP4 TLE from CelesTrak |
-| Open data: TLE from CelesTrak / Space-Track | ✅ Done | `backend/satellites.py` — real TLE embedded; CelesTrak fetch in `orbital.py` |
+| Open data: TLE from CelesTrak / Space-Track | ⚠️ Partial | `backend/satellites.py` — real TLE embedded for demo; live CelesTrak/Space-Track fetch not implemented |
 | Open data: 3D models from GrabCAD / NASA | ✅ Done | Procedural Three.js models (1U + 3U BoxGeometry); source documented in `Satellites.tsx:1-8` |
 | Key parameters for parametrisation | ✅ Done | Satellite count, orbit altitude, inclination, comm range, orbital planes |
 
@@ -23,7 +23,7 @@
 | ≥ 2 types of CubeSat 3D models | ✅ Done | 1U CubeSat (body only) and 3U CubeSat (body + solar panels via PlaneGeometry) |
 | Materials/textures matching space theme | ✅ Done | Emissive constellation colours + metalness/roughness on body |
 | Starfield background | ✅ Done | 1 500 procedural stars in `Scene3D.tsx` |
-| Earth with texture | ✅ Done | NASA Blue Marble texture + ShaderMaterial atmosphere in `Earth.tsx` |
+| Earth with texture | ✅ Done | NASA Blue Marble texture + meshPhongMaterial atmosphere layers in `Earth.tsx` |
 | Satellite placement in orbit | ✅ Done | SGP4 ECI→scene coords; virtual Walker orbits when altitude > 0 |
 
 ### Spec 3.3 — Orbital Mechanics
@@ -54,7 +54,7 @@
 |---|---|---|
 | Slider "Satellite count" (3–15) → live rebuild | ✅ Done | `ControlPanel.tsx:79-91` |
 | Slider "Orbit altitude" (400–2000 km) + TLE toggle | ✅ Done | `ControlPanel.tsx:94-129` |
-| Slider "Comm range" (50–2000 km) | ✅ Done | `ControlPanel.tsx:157-173` |
+| Slider "Comm range" (50–10 000 km) | ✅ Done | `ControlPanel.tsx:157-173` |
 | Toggle "Show/hide ISL links" | ✅ Done | `ControlPanel.tsx:179-188` |
 | Toggle "Show/hide orbital tracks" | ✅ Done | `ControlPanel.tsx:177` |
 | Toggle "Show/hide labels" | ✅ Done | `ControlPanel.tsx:178` |
@@ -70,7 +70,7 @@
 
 | Requirement | Status | Notes |
 |---|---|---|
-| TLE from open repository (CelesTrak / Space-Track) | ✅ Done | Embedded real TLE in `backend/satellites.py`; live fetch in `backend/orbital.py` |
+| TLE from open repository (CelesTrak / Space-Track) | ⚠️ Partial | Real TLE embedded in `backend/satellites.py`; live fetch from CelesTrak/Space-Track not yet implemented |
 | 3D model sources documented | ✅ Done | File header in `Satellites.tsx:1-8`; ARCHITECTURE.md §Data Sources |
 | Open data compliance statement | ✅ Done | ARCHITECTURE.md — all resources open-licensed |
 
@@ -102,12 +102,12 @@
 
 | Requirement | Spec | Status | Notes |
 |---|---|---|---|
-| Open international data (NASA, ESA, CelesTrak, Space-Track) | 7.1 | ✅ Done | TLE from CelesTrak; NASA Blue Marble texture |
+| Open international data (NASA, ESA, CelesTrak, Space-Track) | 7.1 | ⚠️ Partial | TLE data sourced from CelesTrak (embedded, no live fetch); NASA Blue Marble texture |
 | Standard formats (TLE, glTF/OBJ, JSON) | 7.1 | ✅ Done | TLE input; JSON REST API; Three.js procedural (no glTF needed) |
 | Multilingual UI RU + EN | 7.2 | ✅ Done | `i18n.ts` — 80+ translation keys; instant language switch |
 | Code/docs comments in English | 7.2 | ✅ Done | All JSDoc/comments in English; README bilingual |
 | Public repository (GitHub) | 7.3 | ✅ Done | `pmixay/starvision` |
-| MIT/Apache 2.0 license | 7.3 | ✅ Done | MIT license in repo root |
+| Open-source license | 7.3 | ✅ Done | Unlicense (public domain) in repo root |
 | README with install / run instructions | 7.3 | ✅ Done | README.md — full setup guide, dependency versions |
 | Architecture documentation + diagram | 7.3 | ✅ Done | ARCHITECTURE.md |
 | Web standards: Chrome / Firefox / Safari | 7.4 | ✅ Done | WebGL2, no vendor-specific extensions |
@@ -123,12 +123,14 @@
 ## Functional Coverage Summary
 
 ```
-Core requirements (spec 3–4):   21 / 21 checked  (100%)
-Bonus requirements (spec 7):    15 / 15 checked  (100%)
+Core requirements (spec 3–4):   21 / 21 checked  (20 ✅ + 1 ⚠️ partial)
+Bonus requirements (spec 7):    15 / 15 checked  (12 ✅ + 3 ⚠️ partial)
 
 Open issues:
   ❌  Deployment (public URL)
   ❌  Screenshots / demo video
+  ⚠️  Live TLE fetch from CelesTrak/Space-Track (currently embedded)
+  ⚠️  ShaderMaterial atmosphere (uses meshPhongMaterial)
 ```
 
 ---

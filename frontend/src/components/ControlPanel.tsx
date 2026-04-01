@@ -149,7 +149,7 @@ export function ControlPanel() {
             <span>7</span>
           </div>
           <p className="text-[9px] text-star-600 font-mono mt-1">
-            Walker: RAAN {lang === 'ru' ? 'равномерно' : 'uniform'}, {Math.ceil(satelliteCount / orbitalPlanes)} {t('control.scPerPlane', lang)}
+            Walker-δ {satelliteCount}/{orbitalPlanes}/{orbitalPlanes > 1 ? Math.max(1, Math.floor(orbitalPlanes / 2)) : 0}: {Math.ceil(satelliteCount / orbitalPlanes)} {t('control.scPerPlane', lang)}
           </p>
         </div>
       )}
@@ -162,14 +162,15 @@ export function ControlPanel() {
         <input
           type="range"
           min={50}
-          max={2000}
+          max={10000}
           step={50}
           value={commRangeKm}
           onChange={(e) => setCommRangeKm(Number(e.target.value))}
         />
         <div className="flex justify-between text-[10px] text-star-700 font-mono mt-0.5">
           <span>50</span>
-          <span>2000 {lang === 'ru' ? 'км' : 'km'}</span>
+          <span>5000</span>
+          <span>10000 {lang === 'ru' ? 'км' : 'km'}</span>
         </div>
       </div>
 

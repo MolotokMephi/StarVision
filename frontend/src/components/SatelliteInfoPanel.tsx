@@ -1,7 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
+import { getSimTime } from '../simClock';
 import type { SatelliteData, SatellitePosition } from '../types';
+
+const EARTH_RADIUS = 6371.0;
+const MU = 398600.4418;
 
 interface SatelliteInfoPanelProps {
   satellites: SatelliteData[];
@@ -42,6 +46,61 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
     () => positions.find((p) => p.norad_id === selectedSatellite),
     [positions, selectedSatellite]
   );
+
+  // Client-side telemetry for virtual satellites (NORAD >= 90000)
+  const [virtualTelemetry, setVirtualTelemetry] = useState<SatellitePosition | null>(null);
+  useEffect(() => {
+    if (!isVirtual || !selectedSatellite) {
+      setVirtualTelemetry(null);
+      return;
+    }
+    const interval = setInterval(() => {
+      const idx = selectedSatellite - 90000;
+      const a = EARTH_RADIUS + orbitAltitudeKm;
+      const n = Math.sqrt(MU / (a * a * a));
+      const incl = (55 * Math.PI) / 180;
+      const P = Math.max(1, Math.min(orbitalPlanes, satelliteCount));
+      const satsPerPlane = Math.ceil(satelliteCount / P);
+      const planeIdx = idx % P;
+      const satInPlane = Math.floor(idx / P);
+      const raan = (planeIdx / P) * 2 * Math.PI;
+      const F = P > 1 ? Math.max(1, Math.floor(P / 2)) : 0;
+      const phase = (satInPlane / satsPerPlane) * 2 * Math.PI
+        + (F * planeIdx / P) * (2 * Math.PI / satsPerPlane);
+      const simTimeSec = getSimTime() / 1000;
+      const M = n * simTimeSec + phase;
+      const xOrb = a * Math.cos(M);
+      const yOrb = a * Math.sin(M);
+      const xInc = xOrb;
+      const yInc = yOrb * Math.cos(incl);
+      const zInc = yOrb * Math.sin(incl);
+      const cosR = Math.cos(raan);
+      const sinR = Math.sin(raan);
+      const x = xInc * cosR - yInc * sinR;
+      const y = xInc * sinR + yInc * cosR;
+      const z = zInc;
+      const speed = Math.sqrt(MU / a);
+      const periodMin = (2 * Math.PI * Math.sqrt(a * a * a / MU)) / 60;
+      const r = Math.sqrt(x * x + y * y + z * z);
+      const lat = Math.asin(z / r) * (180 / Math.PI);
+      const lon = Math.atan2(y, x) * (180 / Math.PI);
+      setVirtualTelemetry({
+        norad_id: selectedSatellite,
+        name: `VirtSat-${idx + 1}`,
+        eci: { x, y, z },
+        velocity: { vx: 0, vy: 0, vz: 0 },
+        altitude_km: orbitAltitudeKm,
+        speed_km_s: speed,
+        period_min: periodMin,
+        lat,
+        lon,
+        timestamp: new Date(getSimTime()).toISOString(),
+      });
+    }, 500);
+    return () => clearInterval(interval);
+  }, [isVirtual, selectedSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount]);
+
+  const effectivePos = isVirtual ? virtualTelemetry : satPos;
 
   if (!selectedSatellite || !satData) return null;
 
@@ -97,24 +156,24 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
       </p>
 
       {/* Telemetry */}
-      {satPos && (
+      {effectivePos && (
         <div className="space-y-1 mb-4">
           <SectionTitle>{t('info.telemetry', lang)}</SectionTitle>
-          <DataRow label={t('info.altitude', lang)} value={`${satPos.altitude_km.toFixed(1)} ${km}`} />
-          <DataRow label={t('info.velocity', lang)} value={`${satPos.speed_km_s.toFixed(3)} ${kms}`} />
-          <DataRow label={t('info.period', lang)} value={`${satPos.period_min.toFixed(1)} ${min}`} />
-          <DataRow label={t('info.latitude', lang)} value={`${satPos.lat.toFixed(2)}°`} />
-          <DataRow label={t('info.longitude', lang)} value={`${satPos.lon.toFixed(2)}°`} />
+          <DataRow label={t('info.altitude', lang)} value={`${effectivePos.altitude_km.toFixed(1)} ${km}`} />
+          <DataRow label={t('info.velocity', lang)} value={`${effectivePos.speed_km_s.toFixed(3)} ${kms}`} />
+          <DataRow label={t('info.period', lang)} value={`${effectivePos.period_min.toFixed(1)} ${min}`} />
+          <DataRow label={t('info.latitude', lang)} value={`${effectivePos.lat.toFixed(2)}°`} />
+          <DataRow label={t('info.longitude', lang)} value={`${effectivePos.lon.toFixed(2)}°`} />
         </div>
       )}
 
       {/* ECI coordinates */}
-      {satPos && (
+      {effectivePos && (
         <div className="space-y-1 mb-4">
           <SectionTitle>{t('info.eciCoords', lang)}</SectionTitle>
-          <DataRow label="X" value={satPos.eci.x.toFixed(1)} />
-          <DataRow label="Y" value={satPos.eci.y.toFixed(1)} />
-          <DataRow label="Z" value={satPos.eci.z.toFixed(1)} />
+          <DataRow label="X" value={effectivePos.eci.x.toFixed(1)} />
+          <DataRow label="Y" value={effectivePos.eci.y.toFixed(1)} />
+          <DataRow label="Z" value={effectivePos.eci.z.toFixed(1)} />
         </div>
       )}
 
