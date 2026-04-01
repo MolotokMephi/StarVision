@@ -42,8 +42,14 @@ export async function fetchOrbitPath(
   return fetchJSON(`/orbit/${noradId}?steps=${steps}&step_sec=${stepSec}`);
 }
 
-export async function fetchTLE() {
-  return fetchJSON<{ tle_data: any[] }>('/tle');
+export async function fetchTLE(source: 'embedded' | 'celestrak' = 'embedded') {
+  return fetchJSON<{ tle_data: any[]; source: string }>(`/tle?source=${source}`);
+}
+
+export async function refreshTLE() {
+  return fetchJSON<{ tle_data: any[]; source: string; refreshed: boolean }>('/tle/refresh', {
+    method: 'POST',
+  });
 }
 
 // ── StarAI ──────────────────────────────────────────────────────────

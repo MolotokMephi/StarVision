@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
+import { fetchTLE, refreshTLE } from '../services/api';
 
 const CONSTELLATION_COLORS: Record<string, string> = {
   'Сфера': '#3389ff',
@@ -29,11 +31,41 @@ export function ControlPanel() {
     showCoverage, setShowCoverage,
     activeConstellations, toggleConstellation,
     satelliteCount, setSatelliteCount,
+    tleSource, setTleSource,
     orbitAltitudeKm, setOrbitAltitudeKm,
     commRangeKm, setCommRangeKm,
     orbitalPlanes, setOrbitalPlanes,
+    setTleData,
     resetView,
   } = useStore();
+
+  const [tleLoading, setTleLoading] = useState(false);
+
+  const handleTleSourceChange = async (source: 'embedded' | 'celestrak') => {
+    setTleSource(source);
+    setTleLoading(true);
+    try {
+      const res = await fetchTLE(source);
+      setTleData(res.tle_data);
+    } catch {
+      // fallback — не меняем данные при ошибке
+    } finally {
+      setTleLoading(false);
+    }
+  };
+
+  const handleTleRefresh = async () => {
+    setTleLoading(true);
+    try {
+      const res = await refreshTLE();
+      setTleData(res.tle_data);
+      setTleSource('celestrak');
+    } catch {
+      // ignore
+    } finally {
+      setTleLoading(false);
+    }
+  };
 
   const planesWord = lang === 'ru'
     ? (orbitalPlanes === 1 ? t('control.plane_one', lang) : orbitalPlanes < 5 ? t('control.plane_few', lang) : t('control.plane_many', lang))
@@ -129,6 +161,46 @@ export function ControlPanel() {
           </p>
         )}
       </div>
+
+      {/* TLE source (only in real TLE mode) */}
+      {orbitAltitudeKm === 0 && (
+        <div className="mb-4">
+          <label className="block text-xs text-star-400 font-mono mb-2">
+            {t('control.tleSource', lang)}
+          </label>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => handleTleSourceChange('embedded')}
+              className={`btn-star text-[10px] flex-1 py-1.5 ${tleSource === 'embedded' ? 'active' : ''}`}
+              disabled={tleLoading}
+            >
+              {t('control.tleEmbedded', lang)}
+            </button>
+            <button
+              onClick={() => handleTleSourceChange('celestrak')}
+              className={`btn-star text-[10px] flex-1 py-1.5 ${tleSource === 'celestrak' ? 'active' : ''}`}
+              disabled={tleLoading}
+            >
+              {t('control.tleCelestrak', lang)}
+            </button>
+            {tleSource === 'celestrak' && (
+              <button
+                onClick={handleTleRefresh}
+                className="btn-star text-[10px] px-2 py-1.5"
+                disabled={tleLoading}
+                title={t('control.tleRefresh', lang)}
+              >
+                {tleLoading ? '...' : '↻'}
+              </button>
+            )}
+          </div>
+          {tleLoading && (
+            <p className="text-[9px] text-star-600 font-mono mt-1 animate-pulse">
+              {t('control.tleLoading', lang)}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Orbital planes (virtual orbits only) */}
       {orbitAltitudeKm > 0 && (

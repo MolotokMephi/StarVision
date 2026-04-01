@@ -63,6 +63,7 @@ export interface AppState {
   highlightedConstellation: string | null;
   activeConstellations: string[];
   satelliteCount: number;
+  tleSource: 'embedded' | 'celestrak';  // источник TLE-данных
   orbitAltitudeKm: number;   // 0 = используются реальные TLE; >0 = виртуальные круговые орбиты
   commRangeKm: number;       // порог дальности связи (50–2000 км)
   activeLinksCount: number;  // текущее количество активных МСС
@@ -86,6 +87,7 @@ export interface AppState {
   highlightConstellation: (name: string | null) => void;
   toggleConstellation: (name: string) => void;
   setSatelliteCount: (count: number) => void;
+  setTleSource: (source: 'embedded' | 'celestrak') => void;
   setOrbitAltitudeKm: (km: number) => void;
   setCommRangeKm: (km: number) => void;
   setActiveLinksCount: (count: number) => void;

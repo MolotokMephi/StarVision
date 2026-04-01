@@ -17,6 +17,7 @@ from orbital import (
     get_orbital_elements, predict_collisions, optimize_plane_distribution,
 )
 from ai_assistant import ask_starai
+from celestrak import get_tle_by_source, invalidate_cache
 
 # ── Приложение ──────────────────────────────────────────────────────
 app = FastAPI(
@@ -90,9 +91,26 @@ async def get_satellite(norad_id: int):
 
 
 @app.get("/api/tle")
-async def get_tle():
-    """TLE-данные для клиентской SGP4-пропагации."""
-    return {"tle_data": get_tle_data()}
+async def get_tle(source: str = Query(default="embedded", regex="^(embedded|celestrak)$")):
+    """
+    TLE-данные для клиентской SGP4-пропагации.
+    ?source=embedded — встроенные данные (по умолчанию)
+    ?source=celestrak — загрузка с CelesTrak (с fallback на встроенные)
+    """
+    tle_data = await get_tle_by_source(source)
+    return {"tle_data": tle_data, "source": source}
+
+
+@app.post("/api/tle/refresh")
+async def refresh_tle():
+    """Принудительно обновить TLE-кэш с CelesTrak."""
+    invalidate_cache()
+    tle_data = await get_tle_by_source("celestrak")
+    return {
+        "tle_data": tle_data,
+        "source": "celestrak",
+        "refreshed": True,
+    }
 
 
 # ── Эндпоинты: Орбитальная механика ────────────────────────────────
