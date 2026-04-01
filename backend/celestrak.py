@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 
 import httpx
 
-from satellites import RUSSIAN_CUBESATS, SatelliteInfo
+from satellites import RUSSIAN_CUBESATS
 
 logger = logging.getLogger(__name__)
 
