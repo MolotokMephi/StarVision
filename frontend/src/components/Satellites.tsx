@@ -72,7 +72,10 @@ function computeCircularOrbitECI(
   const planeIdx = index % P;
   const satInPlane = Math.floor(index / P);
   const raan = (planeIdx / P) * 2 * Math.PI;
-  const phase = (satInPlane / satsPerPlane) * 2 * Math.PI;
+  // Walker-δ T/P/F: inter-plane phase offset for uniform coverage
+  const F = P > 1 ? Math.max(1, Math.floor(P / 2)) : 0;
+  const phase = (satInPlane / satsPerPlane) * 2 * Math.PI
+    + (F * planeIdx / P) * (2 * Math.PI / satsPerPlane);
   const M = n * simTimeSec + phase;
 
   const xOrb = a * Math.cos(M);
@@ -349,7 +352,10 @@ function VirtualOrbitLine({
     const planeIdx = index % P;
     const satInPlane = Math.floor(index / P);
     const raan = (planeIdx / P) * 2 * Math.PI;
-    const phase = (satInPlane / satsPerPlane) * 2 * Math.PI;
+    // Walker-δ T/P/F: inter-plane phase offset
+    const F = P > 1 ? Math.max(1, Math.floor(P / 2)) : 0;
+    const phase = (satInPlane / satsPerPlane) * 2 * Math.PI
+      + (F * planeIdx / P) * (2 * Math.PI / satsPerPlane);
     const period = (2 * Math.PI) / n;
 
     for (let i = 0; i < steps; i++) {

@@ -44,7 +44,7 @@
 |---|---|---|
 | Satellite count | 3–15 | Uniform selection from catalog |
 | Orbit altitude | TLE / 400–2000 km | TLE = real data; otherwise virtual Walker constellation |
-| Communication range | 50–2000 km | ISL link visibility threshold |
+| Communication range | 50–10 000 km | ISL link visibility threshold |
 | Simulation speed | 1×–200× | Time acceleration presets |
 | ISL links | on/off | Show/hide inter-satellite links |
 | Orbital tracks | on/off | Show/hide orbit traces |
@@ -205,7 +205,7 @@ StarVision/
 | GET | `/api/positions` | Current ECI coordinates of all spacecraft |
 | GET | `/api/tle` | TLE data for client-side SGP4 propagation |
 | GET | `/api/orbit/{norad_id}` | Orbital track (120 points, 60s step) |
-| GET | `/api/links?comm_range_km=500` | Inter-satellite links with LOS check |
+| GET | `/api/links?comm_range_km=3000` | Inter-satellite links with LOS check |
 | GET | `/api/orbital-elements/{norad_id}` | Keplerian orbital elements |
 | POST | `/api/starai/chat` | StarAI — chat with JSON UI commands |
 | GET | `/api/config` | Initial frontend configuration |
@@ -215,9 +215,10 @@ StarVision/
 ## Data Sources
 
 ### TLE (Two-Line Element) — orbital data
-- **CelesTrak** — https://celestrak.org — current TLE for Russian spacecraft
+- **CelesTrak** — https://celestrak.org — source of TLE for Russian spacecraft
 - **Space-Track.org** — https://www.space-track.org — US Space Force official database
 - License: TLE data is public domain
+- **Note:** TLE data is currently embedded in `backend/satellites.py` for demo purposes. Live fetch from CelesTrak/Space-Track is planned but not yet implemented.
 
 ### Earth Textures
 - **NASA Blue Marble** "World, April 2004" — NASA Earth Observatory / EOSDIS
@@ -257,6 +258,7 @@ Expert demonstrates constellation capabilities: satellite motion, ISL appearance
 - Earth textures used per NASA Media Usage Guidelines
 - 3D satellite models created independently (procedural Three.js generation)
 - All libraries have open MIT license
+- Project license: Unlicense (public domain)
 
 ---
 

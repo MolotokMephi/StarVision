@@ -41,13 +41,16 @@ function computeVirtualPositions(
   const P = Math.max(1, Math.min(planes, count));
   const satsPerPlane = Math.ceil(count / P);
   const twoPi = 2 * Math.PI;
+  // Walker-δ T/P/F: inter-plane phase offset for uniform coverage
+  const F = P > 1 ? Math.max(1, Math.floor(P / 2)) : 0;
 
   const result: Array<{ x: number; y: number; z: number }> = new Array(count);
   for (let i = 0; i < count; i++) {
     const planeIdx = i % P;
     const satInPlane = Math.floor(i / P);
     const raan = (planeIdx / P) * twoPi;
-    const phase = (satInPlane / satsPerPlane) * twoPi;
+    const phase = (satInPlane / satsPerPlane) * twoPi
+      + (F * planeIdx / P) * (twoPi / satsPerPlane);
     const M = n * t + phase;
     const xOrb = a * Math.cos(M);
     const yOrb = a * Math.sin(M);

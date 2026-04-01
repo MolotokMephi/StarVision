@@ -137,7 +137,7 @@ async def get_elements(norad_id: int):
 # ── Эндпоинт: Межспутниковые связи ────────────────────────────────
 @app.get("/api/links")
 async def get_links(
-    comm_range_km: float = Query(default=500.0, ge=50.0, le=5000.0),
+    comm_range_km: float = Query(default=3000.0, ge=50.0, le=15000.0),
     timestamp: Optional[str] = None,
 ):
     """

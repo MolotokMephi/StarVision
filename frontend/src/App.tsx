@@ -6,6 +6,7 @@ import { StarAIChat } from './components/StarAIChat';
 import { Header } from './components/Header';
 import { useStore } from './hooks/useStore';
 import { fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE } from './services/api';
+import { getSimTime } from './simClock';
 
 export default function App() {
   const {
@@ -38,9 +39,11 @@ export default function App() {
   }, []);
 
   // Загрузка позиций (периодическая — резервная для fallback и info panel)
+  // Используем симулированное время для синхронизации с 3D-сценой
   const loadPositions = useCallback(async () => {
     try {
-      const res = await fetchPositions();
+      const simTimestamp = new Date(getSimTime()).toISOString();
+      const res = await fetchPositions(simTimestamp);
       setPositions(res.positions);
     } catch (err) {
       console.error('Position fetch error:', err);
