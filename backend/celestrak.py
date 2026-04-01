@@ -45,7 +45,8 @@ def _parse_tle_text(text: str) -> Dict[int, Tuple[str, str]]:
             norad_id = int(line1[2:7].strip())
             result[norad_id] = (line1, line2)
         except (ValueError, IndexError):
-            pass
+            # Некорректный формат строки TLE — пропускаем этот спутник
+            logger.debug("Failed to parse NORAD ID from TLE line: %r", line1)
 
         i += 3
 
