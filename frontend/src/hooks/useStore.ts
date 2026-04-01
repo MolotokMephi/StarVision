@@ -84,6 +84,7 @@ export const useStore = create<AppState>((set) => ({
       timeSpeed: 1,
       showOrbits: true,
       showLabels: true,
+      showCoverage: false,
       showLinks: true,
       activeConstellations: [...ALL_CONSTELLATIONS],
       satelliteCount: 15,

@@ -28,6 +28,7 @@
 - **2 CubeSat 3D models**: 1U (2 solar panels) and 3U (4 panels) — procedural Three.js
 - **StarAI** — built-in AI assistant (Anthropic Claude API) with UI control commands
 - **Virtual Walker orbits** — configurable altitude (400–2000 km), 1–7 orbital planes
+- **Ground coverage zones** — real-time satellite footprint visualization (horizon circle on Earth)
 - **Optimized rendering** — object pooling, throttled raycasting, adaptive DPR
 
 ### Parameters
@@ -42,6 +43,7 @@
 | ISL links | on/off | Show/hide inter-satellite links |
 | Orbital tracks | on/off | Show/hide orbit traces |
 | Satellite labels | on/off | Show/hide spacecraft names |
+| Coverage zones | on/off | Show/hide ground coverage footprints |
 | Constellation filter | 7 groups | Selective display by constellation |
 | Language | RU / EN | Interface language |
 

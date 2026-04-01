@@ -116,7 +116,7 @@ def propagate_orbit_path(sat_info: SatelliteInfo, dt_start: datetime,
         dt = datetime.fromtimestamp(t, tz=timezone.utc)
 
         jd, fr = jday(dt.year, dt.month, dt.day,
-                      dt.hour, dt.minute, dt.second)
+                      dt.hour, dt.minute, dt.second + dt.microsecond / 1e6)
         error, position, _ = satrec.sgp4(jd, fr)
 
         if error == 0:

@@ -55,7 +55,11 @@ function virtualECI(
   const pi   = i % P;
   const si   = Math.floor(i / P);
   const raan = (pi / P) * 2 * Math.PI;
-  const M    = n * tSec + (si / spp) * 2 * Math.PI;
+  // Walker-δ T/P/F: inter-plane phase offset for uniform coverage
+  const F    = P > 1 ? Math.max(1, Math.floor(P / 2)) : 0;
+  const phase = (si / spp) * 2 * Math.PI
+    + (F * pi / P) * (2 * Math.PI / spp);
+  const M    = n * tSec + phase;
   const xOrb = a * Math.cos(M);
   const yOrb = a * Math.sin(M);
   const cosR = Math.cos(raan), sinR = Math.sin(raan);

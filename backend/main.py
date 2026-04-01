@@ -91,7 +91,7 @@ async def get_satellite(norad_id: int):
 
 
 @app.get("/api/tle")
-async def get_tle(source: str = Query(default="embedded", regex="^(embedded|celestrak)$")):
+async def get_tle(source: str = Query(default="embedded", pattern="^(embedded|celestrak)$")):
     """
     TLE-данные для клиентской SGP4-пропагации.
     ?source=embedded — встроенные данные (по умолчанию)

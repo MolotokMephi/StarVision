@@ -43,13 +43,13 @@ RESPONSE FORMAT — strictly JSON:
 }}
 
 Russian satellites in the system (NORAD ID):
-- Sfera constellation: Skif-D (56200), Marathon-IoT-1 (56201), Marathon-IoT-2 (56202)
-- Educational: SiriusSat-1 (44394), SiriusSat-2 (44395), UmKA-1 (47951)
+- Sfera constellation: Skif-D (56200), Marathon-IoT-1 (56201), Marathon-IoT-2 (56202), Marathon-IoT-3 (56203)
+- Educational: SiriusSat-1 (44394), SiriusSat-2 (44395), Tanyusha-YuZGU-1 (44396)
 - MIPT: Dekart (49260)
+- Bauman MSTU: UmKA-1 (47951)
 - Gonets constellation: Gonets-M #21 (40553), Gonets-M #22 (40554), Gonets-M #23 (40555)
 - Earth Observation: Zorkiy-2M (48850), Berkut-S (55120)
 - Scientific: Aist-2T (55121)
-- Bauman MSTU: UmKA-1 (47951)
 
 {lang_instruction}
 Be friendly, informative, and passionate about space.
@@ -438,11 +438,11 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             }
         return {
             "message": (
-                "Currently the model displays up to 14 real Russian satellites. "
+                "Currently the model displays up to 15 real Russian satellites. "
                 "You can change the count from 3 to 15 via the slider or tell me, "
                 "e.g.: 'Set 10 satellites'."
                 if en else
-                "Сейчас в модели отображается до 14 реальных российских спутников. "
+                "Сейчас в модели отображается до 15 реальных российских спутников. "
                 "Ты можешь изменить количество от 3 до 15 через ползунок или сказать мне, "
                 "например: «Установи 10 спутников»."
             ),
@@ -508,8 +508,10 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "скиф": 56200, "skif": 56200,
             "марафон-1": 56201, "marathon-1": 56201,
             "марафон-2": 56202, "marathon-2": 56202,
+            "марафон-3": 56203, "marathon-3": 56203,
             "сириус-1": 44394, "сириуссат-1": 44394, "sirius-1": 44394, "siriussat-1": 44394,
             "сириус-2": 44395, "sirius-2": 44395,
+            "танюша": 44396, "tanyusha": 44396,
             "декарт": 49260, "dekart": 49260,
             "умка": 47951, "umka": 47951,
             "гонец-21": 40553, "gonets-21": 40553,

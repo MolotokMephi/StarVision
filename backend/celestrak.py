@@ -20,15 +20,10 @@ CELESTRAK_URLS = [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=russian&FORMAT=tle",
 ]
 
-# Простое кэширование загруженных TLE: словарь и время последнего обновления
-CACHE_TTL_SEC = 300  # время жизни кэша в секундах
-_tle_cache: Dict[int, Tuple[str, str]] = {}
-_cache_timestamp: float = 0.0
-
-# Кэш TLE-данных: norad_id -> (tle_line1, tle_line2, timestamp)
-_tle_cache: Dict[int, Tuple[str, str]] = {}
-_cache_timestamp: float = 0.0
+# Кэш TLE-данных: norad_id -> (tle_line1, tle_line2)
 CACHE_TTL_SEC = 3600  # обновлять раз в час
+_tle_cache: Dict[int, Tuple[str, str]] = {}
+_cache_timestamp: float = 0.0
 
 
 def _parse_tle_text(text: str) -> Dict[int, Tuple[str, str]]:
