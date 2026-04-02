@@ -158,7 +158,12 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                                 all_tle[nid] = tle
 
                 # Для спутников, не найденных в групповых файлах — запрос поштучно
-                missing = target_set - set(all_tle.keys())
+                # Skip deorbited satellites (CelesTrak returns 404 for them)
+                deorbited_ids = {
+                    s.norad_id for s in RUSSIAN_CUBESATS
+                    if s.status == "deorbited"
+                }
+                missing = target_set - set(all_tle.keys()) - deorbited_ids
                 if missing:
                     logger.info("Fetching %d missing satellites individually", len(missing))
                     individual_tasks = []
@@ -206,6 +211,9 @@ async def _fetch_url(client: httpx.AsyncClient, url: str) -> Dict[int, Tuple[str
     """Загрузить и разобрать TLE с одного URL."""
     try:
         resp = await client.get(url)
+        if resp.status_code == 404:
+            logger.debug("CelesTrak 404 for %s (satellite may be deorbited)", url.split("CATNR=")[-1].split("&")[0] if "CATNR=" in url else url)
+            return {}
         resp.raise_for_status()
         parsed = _parse_tle_text(resp.text)
         if parsed:

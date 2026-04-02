@@ -88,12 +88,12 @@ export function ControlPanel() {
         <label className="block text-xs text-star-400 font-mono mb-2">
           {t('control.simSpeed', lang)}: {timeSpeed}×
         </label>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1 flex-wrap">
           {SPEED_PRESETS.map((preset) => (
             <button
               key={preset.value}
               onClick={() => setTimeSpeed(preset.value)}
-              className={`btn-star text-xs flex-1 py-1.5 ${
+              className={`btn-star text-[10px] flex-1 min-w-[40px] py-1.5 ${
                 timeSpeed === preset.value ? 'active' : ''
               }`}
             >
@@ -313,14 +313,18 @@ function Toggle({
   onChange: (val: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer group">
+    <div
+      className="flex items-center gap-2 cursor-pointer group"
+      onClick={() => onChange(!checked)}
+      role="switch"
+      aria-checked={checked}
+    >
       <div
         className={`w-8 h-4 rounded-full transition-all relative flex-shrink-0 ${
           checked
             ? 'bg-star-600'
             : 'bg-void-700 border border-star-900'
         }`}
-        onClick={() => onChange(!checked)}
       >
         <div
           className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${
@@ -330,9 +334,9 @@ function Toggle({
           }`}
         />
       </div>
-      <span className="text-xs text-star-300 font-body group-hover:text-star-100 transition-colors">
+      <span className="text-xs text-star-300 font-body group-hover:text-star-100 transition-colors select-none">
         {label}
       </span>
-    </label>
+    </div>
   );
 }

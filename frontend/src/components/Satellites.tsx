@@ -7,7 +7,7 @@
  * - Источники моделей: процедурные Three.js (BoxGeometry + PlaneGeometry)
  */
 
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, useCallback, memo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Vector3, Group } from 'three';
@@ -196,7 +196,7 @@ interface SatMarkerProps {
   getECI?: () => { x: number; y: number; z: number } | null;
 }
 
-function SatMarker({
+const SatMarker = memo(function SatMarker({
   name,
   constellation,
   isSelected,
@@ -288,7 +288,7 @@ function SatMarker({
       )}
     </group>
   );
-}
+});
 
 // ── Орбитальный трек ────────────────────────────────────────────────
 interface OrbitLineProps {
@@ -474,24 +474,33 @@ export function Satellites({
     return selectUniformly(filtered, satelliteCount);
   }, [positions, activeConstellations, satelliteConstellations, satelliteCount, orbitAltitudeKm]);
 
-  // Функция: получить текущую ECI-позицию для спутника через satellite.js / virtual orbit
-  function makeGetECI(noradId: number) {
-    return (): { x: number; y: number; z: number } | null => {
-      const simTime = getSimTime();
-      // Режим виртуальный
-      if (orbitAltitudeKm > 0) {
-        const idx = noradId - 90000;
-        const eci = computeCircularOrbitECI(idx, virtualSatCount, orbitAltitudeKm, simTime / 1000, orbitalPlanes);
-        return eci;
-      }
-      // Режим реальных TLE через satellite.js
-      const rec = satrecsRef.current.find((r) => r.norad_id === noradId);
-      if (!rec) return null;
-      const pv = propagate(rec.satrec, new Date(simTime));
-      if (!pv.position || typeof pv.position === 'boolean') return null;
-      return pv.position as { x: number; y: number; z: number };
-    };
-  }
+  // Store orbit params in a ref so getECI closures always read the latest values
+  const orbitParamsRef = useRef({ orbitAltitudeKm, virtualSatCount, orbitalPlanes });
+  orbitParamsRef.current = { orbitAltitudeKm, virtualSatCount, orbitalPlanes };
+
+  // Stable getECI factory: returns the same function reference for the same noradId
+  const eciCacheRef = useRef<Record<number, () => { x: number; y: number; z: number } | null>>({});
+
+  const getGetECI = useCallback((noradId: number) => {
+    if (!eciCacheRef.current[noradId]) {
+      eciCacheRef.current[noradId] = () => {
+        const simTime = getSimTime();
+        const { orbitAltitudeKm: alt, virtualSatCount: vsc, orbitalPlanes: planes } = orbitParamsRef.current;
+        // Режим виртуальный
+        if (alt > 0) {
+          const idx = noradId - 90000;
+          return computeCircularOrbitECI(idx, vsc, alt, simTime / 1000, planes);
+        }
+        // Режим реальных TLE через satellite.js
+        const rec = satrecsRef.current.find((r) => r.norad_id === noradId);
+        if (!rec) return null;
+        const pv = propagate(rec.satrec, new Date(simTime));
+        if (!pv.position || typeof pv.position === 'boolean') return null;
+        return pv.position as { x: number; y: number; z: number };
+      };
+    }
+    return eciCacheRef.current[noradId];
+  }, []);
 
   // ── Начальные позиции (для первого рендера, пока нет клиентских данных)
   function getInitialPos(noradId: number): Vector3 {
@@ -527,7 +536,7 @@ export function Satellites({
               selectedSatellite === sat.norad_id ? null : sat.norad_id
             )}
             initPos={getInitialPos(sat.norad_id)}
-            getECI={makeGetECI(sat.norad_id)}
+            getECI={getGetECI(sat.norad_id)}
           />
         );
       })}
@@ -550,7 +559,7 @@ export function Satellites({
               selectedSatellite === pos.norad_id ? null : pos.norad_id
             )}
             initPos={getInitialPos(pos.norad_id)}
-            getECI={makeGetECI(pos.norad_id)}
+            getECI={getGetECI(pos.norad_id)}
           />
         );
       })}

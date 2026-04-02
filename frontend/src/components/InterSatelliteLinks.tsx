@@ -128,9 +128,9 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
   const poolInitializedRef = useRef(false);
 
   // Tooltip state
-  const [tooltip, setTooltip] = useState<{ position: Vector3; distance: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{ position: Vector3; distance: number; connected: boolean } | null>(null);
   const hoveredIdxRef = useRef(-1);
-  const linkMetaRef = useRef<Array<{ mx: number; my: number; mz: number; distance: number }>>([]);
+  const linkMetaRef = useRef<Array<{ mx: number; my: number; mz: number; distance: number; connected: boolean }>>([]);
 
   // Raycaster
   const raycasterRef = useRef(new Raycaster());
@@ -271,7 +271,8 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     let lineIdx = 0;
     const commRangeSq = commRangeKm * commRangeKm;
     const nearEdgeRangeSq = (commRangeKm * 1.5) * (commRangeKm * 1.5);
-    const meta: Array<{ mx: number; my: number; mz: number; distance: number }> = [];
+    const meta: Array<{ mx: number; my: number; mz: number; distance: number; connected: boolean }> = [];
+    const currentHovered = hoveredIdxRef.current;
 
     for (let i = 0; i < eciPositions.length; i++) {
       const a = eciPositions[i];
@@ -307,10 +308,16 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
           posAttr.needsUpdate = true;
           line.geometry.computeBoundingSphere();
 
-          line.material = connected ? GREEN_MAT : RED_MAT;
+          // Preserve hover material on hovered line, otherwise set normal material
+          if (lineIdx === currentHovered) {
+            line.material = HOVER_MAT;
+          } else {
+            line.material = connected ? GREEN_MAT : RED_MAT;
+          }
           line.visible = true;
           line.userData.linkIndex = lineIdx;
           line.userData.distance = dist;
+          line.userData.connected = connected;
 
           if (connected) activeCount++;
 
@@ -319,6 +326,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
             my: (ay3 + by3) / 2,
             mz: (az3 + bz3) / 2,
             distance: dist,
+            connected,
           });
 
           lineIdx++;
@@ -366,10 +374,15 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     }
 
     if (newIdx !== hoveredIdxRef.current) {
+      // Restore previous hovered line material
+      if (hoveredIdxRef.current >= 0 && hoveredIdxRef.current < pool.length && pool[hoveredIdxRef.current].visible) {
+        const prevLine = pool[hoveredIdxRef.current];
+        prevLine.material = prevLine.userData.connected ? GREEN_MAT : RED_MAT;
+      }
       hoveredIdxRef.current = newIdx;
       if (newIdx >= 0 && meta[newIdx]) {
         const m = meta[newIdx];
-        setTooltip({ position: new Vector3(m.mx, m.my, m.mz), distance: m.distance });
+        setTooltip({ position: new Vector3(m.mx, m.my, m.mz), distance: m.distance, connected: m.connected });
       } else {
         setTooltip(null);
       }
@@ -400,7 +413,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
               boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 0 8px rgba(80,150,255,0.15)',
             }}
           >
-            <span style={{ color: '#00ff88', marginRight: '4px' }}>●</span>
+            <span style={{ color: tooltip.connected ? '#00ff88' : '#ff3344', marginRight: '4px' }}>●</span>
             {tooltip.distance.toFixed(1)} {useStore.getState().lang === 'ru' ? 'км' : 'km'}
           </div>
         </Html>
