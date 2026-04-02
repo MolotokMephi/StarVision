@@ -17,7 +17,7 @@ from orbital import (
     get_orbital_elements, predict_collisions, optimize_plane_distribution,
 )
 from ai_assistant import ask_starai
-from celestrak import get_tle_by_source, invalidate_cache
+from celestrak import get_tle_by_source, invalidate_cache, fetch_celestrak_tle
 
 # ── Приложение ──────────────────────────────────────────────────────
 app = FastAPI(
@@ -52,6 +52,20 @@ class SimulationParams(BaseModel):
     show_orbits: bool = True
     show_coverage: bool = False
     selected_constellations: List[str] = []
+
+
+# ── Хелпер: TLE override ──────────────────────────────────────────
+async def _get_tle_override(source: str) -> Optional[dict]:
+    """Вернуть dict norad_id → (line1, line2) для переданного источника.
+    Для 'embedded' возвращает None (orbital.py использует встроенные TLE).
+    Для 'celestrak' — загружает с CelesTrak.
+    """
+    if source != "celestrak":
+        return None
+    try:
+        return await fetch_celestrak_tle()
+    except Exception:
+        return None
 
 
 # ── Эндпоинты: Спутники ────────────────────────────────────────────
@@ -115,10 +129,14 @@ async def refresh_tle():
 
 # ── Эндпоинты: Орбитальная механика ────────────────────────────────
 @app.get("/api/positions")
-async def get_positions(timestamp: Optional[str] = None):
+async def get_positions(
+    timestamp: Optional[str] = None,
+    source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
+):
     """
     Текущие позиции всех спутников (ECI + geo).
     ?timestamp=2026-03-29T12:00:00Z — для конкретного момента.
+    ?source=embedded|celestrak — источник TLE-данных.
     """
     dt = None
     if timestamp:
@@ -126,7 +144,12 @@ async def get_positions(timestamp: Optional[str] = None):
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=400, detail="Неверный формат timestamp")
-    return {"positions": propagate_all(dt), "timestamp": (dt or datetime.now(timezone.utc)).isoformat()}
+    tle_override = await _get_tle_override(source)
+    return {
+        "positions": propagate_all(dt, tle_override=tle_override),
+        "timestamp": (dt or datetime.now(timezone.utc)).isoformat(),
+        "source": source,
+    }
 
 
 @app.get("/api/orbit/{norad_id}")
@@ -134,22 +157,28 @@ async def get_orbit_path(
     norad_id: int,
     steps: int = Query(default=120, ge=10, le=500),
     step_sec: float = Query(default=60.0, ge=10, le=600),
+    source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
     """Орбитальный трек для визуализации."""
     sat = get_satellite_by_id(norad_id)
     if not sat:
         raise HTTPException(status_code=404, detail="Спутник не найден")
-    path = propagate_orbit_path(sat, datetime.now(timezone.utc), steps, step_sec)
-    return {"norad_id": norad_id, "name": sat.name, "path": path, "steps": steps}
+    tle_override = await _get_tle_override(source)
+    path = propagate_orbit_path(sat, datetime.now(timezone.utc), steps, step_sec, tle_override=tle_override)
+    return {"norad_id": norad_id, "name": sat.name, "path": path, "steps": steps, "source": source}
 
 
 @app.get("/api/orbital-elements/{norad_id}")
-async def get_elements(norad_id: int):
+async def get_elements(
+    norad_id: int,
+    source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
+):
     """Кеплеровы элементы орбиты."""
     sat = get_satellite_by_id(norad_id)
     if not sat:
         raise HTTPException(status_code=404, detail="Спутник не найден")
-    return get_orbital_elements(sat)
+    tle_override = await _get_tle_override(source)
+    return get_orbital_elements(sat, tle_override=tle_override)
 
 
 # ── Эндпоинт: Межспутниковые связи ────────────────────────────────
@@ -157,12 +186,14 @@ async def get_elements(norad_id: int):
 async def get_links(
     comm_range_km: float = Query(default=3000.0, ge=50.0, le=15000.0),
     timestamp: Optional[str] = None,
+    source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
     """
     Расчёт межспутниковых связей (ISL).
     Возвращает все пары спутников с расстоянием и статусом связи.
     ?comm_range_km=500 — порог дальности (км)
     ?timestamp=... — момент расчёта (по умолчанию текущий UTC)
+    ?source=embedded|celestrak — источник TLE-данных.
     """
     import math
 
@@ -173,7 +204,8 @@ async def get_links(
         except ValueError:
             raise HTTPException(status_code=400, detail="Неверный формат timestamp")
 
-    positions = propagate_all(dt)
+    tle_override = await _get_tle_override(source)
+    positions = propagate_all(dt, tle_override=tle_override)
 
     def has_los(p1, p2):
         """Проверка прямой видимости (линии связи не пересекает Землю)."""
@@ -223,17 +255,21 @@ async def get_links(
 async def get_collisions(
     threshold_km: float = Query(default=100.0, ge=1.0, le=1000.0),
     hours_ahead: float = Query(default=24.0, ge=1.0, le=168.0),
+    source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
     """
     Прогнозирование потенциальных коллизий между спутниками.
     Возвращает пары с минимальным расстоянием ≤ threshold_km за период hours_ahead.
+    ?source=embedded|celestrak — источник TLE-данных.
     """
-    approaches = predict_collisions(threshold_km, hours_ahead)
+    tle_override = await _get_tle_override(source)
+    approaches = predict_collisions(threshold_km, hours_ahead, tle_override=tle_override)
     return {
         "close_approaches": approaches,
         "count": len(approaches),
         "threshold_km": threshold_km,
         "hours_ahead": hours_ahead,
+        "source": source,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -270,7 +306,7 @@ async def get_config():
         "earth_texture_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/74000/74393/world.200412.3x5400x2700.jpg",
         "earth_radius_km": 6371.0,
         "scale_factor": 1 / 6371.0,     # нормализация: 1 unit = 1 earth radius
-        "constellations": ["Сфера", "Гонец", "Образовательные", "ДЗЗ", "Научные", "МФТИ", "МГТУ им. Баумана"],
+        "constellations": ["УниверСат", "МГТУ Баумана", "SPUTNIX", "Геоскан", "НИИЯФ МГУ", "Space-Pi"],
         "default_time_speed": 1.0,
         "update_interval_ms": 1000,
     }

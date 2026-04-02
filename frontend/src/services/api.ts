@@ -29,17 +29,29 @@ export async function fetchSatellites(): Promise<APISatellitesResponse> {
   return fetchJSON('/satellites');
 }
 
-export async function fetchPositions(timestamp?: string): Promise<APIPositionsResponse> {
-  const query = timestamp ? `?timestamp=${encodeURIComponent(timestamp)}` : '';
+export async function fetchPositions(
+  timestamp?: string,
+  source: 'embedded' | 'celestrak' = 'embedded',
+): Promise<APIPositionsResponse> {
+  const params = new URLSearchParams();
+  if (timestamp) params.set('timestamp', timestamp);
+  if (source !== 'embedded') params.set('source', source);
+  const query = params.toString() ? `?${params}` : '';
   return fetchJSON(`/positions${query}`);
 }
 
 export async function fetchOrbitPath(
   noradId: number,
   steps = 120,
-  stepSec = 60
+  stepSec = 60,
+  source: 'embedded' | 'celestrak' = 'embedded',
 ): Promise<APIOrbitResponse> {
-  return fetchJSON(`/orbit/${noradId}?steps=${steps}&step_sec=${stepSec}`);
+  const params = new URLSearchParams({
+    steps: String(steps),
+    step_sec: String(stepSec),
+  });
+  if (source !== 'embedded') params.set('source', source);
+  return fetchJSON(`/orbit/${noradId}?${params}`);
 }
 
 export async function fetchTLE(source: 'embedded' | 'celestrak' = 'embedded') {

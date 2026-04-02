@@ -4,13 +4,12 @@ import { t, tConstellation } from '../i18n';
 import { fetchTLE, refreshTLE } from '../services/api';
 
 const CONSTELLATION_COLORS: Record<string, string> = {
-  'Сфера': '#3389ff',
-  'Образовательные': '#33ffaa',
-  'Гонец': '#ff9933',
-  'ДЗЗ': '#ff3366',
-  'Научные': '#aa33ff',
-  'МФТИ': '#33ffdd',
-  'МГТУ им. Баумана': '#ffdd33',
+  'УниверСат': '#3389ff',
+  'МГТУ Баумана': '#33ffaa',
+  'SPUTNIX': '#ff9933',
+  'Геоскан': '#ff3366',
+  'НИИЯФ МГУ': '#aa33ff',
+  'Space-Pi': '#ffdd33',
 };
 
 const SPEED_PRESETS = [

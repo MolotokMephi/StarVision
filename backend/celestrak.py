@@ -17,9 +17,10 @@ from satellites import RUSSIAN_CUBESATS
 
 logger = logging.getLogger(__name__)
 
-# URL-ы CelesTrak для получения TLE
+# URL-ы CelesTrak для получения TLE (CubeSat и amateur-radio — покрывают российские кубсаты)
 CELESTRAK_URLS = [
-    "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
+    "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
 ]
 
 # Кэш TLE-данных: norad_id -> (tle_line1, tle_line2)

@@ -19,6 +19,33 @@ DEG2RAD = math.pi / 180.0
 RAD2DEG = 180.0 / math.pi
 
 
+def _resolve_tle(
+    sat: SatelliteInfo,
+    tle_override: Dict[int, tuple] = None,
+) -> tuple:
+    """Вернуть (tle_line1, tle_line2) — из override или из встроенных."""
+    if tle_override and sat.norad_id in tle_override:
+        return tle_override[sat.norad_id]
+    return sat.tle_line1, sat.tle_line2
+
+
+def _with_tle(sat: SatelliteInfo, tle1: str, tle2: str) -> SatelliteInfo:
+    """Создать копию SatelliteInfo с подменёнными TLE-строками."""
+    return SatelliteInfo(
+        norad_id=sat.norad_id,
+        name=sat.name,
+        constellation=sat.constellation,
+        purpose=sat.purpose,
+        mass_kg=sat.mass_kg,
+        form_factor=sat.form_factor,
+        launch_date=sat.launch_date,
+        status=sat.status,
+        tle_line1=tle1,
+        tle_line2=tle2,
+        description=sat.description,
+    )
+
+
 def tle_to_satrec(tle1: str, tle2: str) -> Satrec:
     """Создать объект SGP4 из TLE-строк."""
     return Satrec.twoline2rv(tle1, tle2, WGS72)
@@ -87,27 +114,42 @@ def eci_to_geodetic(x: float, y: float, z: float, jd_total: float) -> Tuple[floa
     return lat, lon
 
 
-def propagate_all(dt: datetime = None) -> List[Dict[str, Any]]:
-    """Пропагировать все спутники на момент dt (или текущий UTC)."""
+def propagate_all(
+    dt: datetime = None,
+    tle_override: Dict[int, tuple] = None,
+) -> List[Dict[str, Any]]:
+    """Пропагировать все спутники на момент dt (или текущий UTC).
+
+    Args:
+        dt: момент времени (UTC). По умолчанию — текущий UTC.
+        tle_override: dict norad_id → (tle_line1, tle_line2).
+            Если передан, для каждого спутника используются TLE из этого dict
+            (вместо встроенных). Спутники, отсутствующие в dict, пропагируются
+            со встроенными TLE.
+    """
     if dt is None:
         dt = datetime.now(timezone.utc)
 
     results = []
     for sat in RUSSIAN_CUBESATS:
-        if sat.tle_line1 and sat.tle_line2:
-            data = propagate_satellite(sat, dt)
+        tle1, tle2 = _resolve_tle(sat, tle_override)
+        if tle1 and tle2:
+            sat_copy = _with_tle(sat, tle1, tle2)
+            data = propagate_satellite(sat_copy, dt)
             if "error" not in data:
                 results.append(data)
     return results
 
 
 def propagate_orbit_path(sat_info: SatelliteInfo, dt_start: datetime,
-                         steps: int = 120, step_sec: float = 60.0) -> List[Dict[str, float]]:
+                         steps: int = 120, step_sec: float = 60.0,
+                         tle_override: Dict[int, tuple] = None) -> List[Dict[str, float]]:
     """
     Рассчитать точки орбиты для визуализации трека.
     По умолчанию: 120 точек с шагом 60 сек = 2 часа трека.
     """
-    satrec = tle_to_satrec(sat_info.tle_line1, sat_info.tle_line2)
+    tle1, tle2 = _resolve_tle(sat_info, tle_override)
+    satrec = tle_to_satrec(tle1, tle2)
     path = []
 
     for i in range(steps):
@@ -130,6 +172,7 @@ def predict_collisions(
     threshold_km: float = 100.0,
     hours_ahead: float = 24.0,
     step_sec: float = 60.0,
+    tle_override: Dict[int, tuple] = None,
 ) -> List[Dict[str, Any]]:
     """
     Прогнозирование потенциальных коллизий (сближений).
@@ -137,8 +180,12 @@ def predict_collisions(
     """
     dt_start = datetime.now(timezone.utc)
     steps = int(hours_ahead * 3600 / step_sec)
-    sats = [s for s in RUSSIAN_CUBESATS if s.tle_line1 and s.tle_line2]
-    satrecs = [(s, tle_to_satrec(s.tle_line1, s.tle_line2)) for s in sats]
+    sats_with_tle = []
+    for s in RUSSIAN_CUBESATS:
+        t1, t2 = _resolve_tle(s, tle_override)
+        if t1 and t2:
+            sats_with_tle.append(_with_tle(s, t1, t2))
+    satrecs = [(s, tle_to_satrec(s.tle_line1, s.tle_line2)) for s in sats_with_tle]
 
     close_approaches: List[Dict[str, Any]] = []
     # Для каждой пары находим минимальное расстояние за период
@@ -247,9 +294,13 @@ def optimize_plane_distribution(
     }
 
 
-def get_orbital_elements(sat_info: SatelliteInfo) -> Dict[str, Any]:
+def get_orbital_elements(
+    sat_info: SatelliteInfo,
+    tle_override: Dict[int, tuple] = None,
+) -> Dict[str, Any]:
     """Извлечь кеплеровы элементы из TLE."""
-    satrec = tle_to_satrec(sat_info.tle_line1, sat_info.tle_line2)
+    tle1, tle2 = _resolve_tle(sat_info, tle_override)
+    satrec = tle_to_satrec(tle1, tle2)
 
     incl = satrec.inclo * RAD2DEG
     raan = satrec.nodeo * RAD2DEG
