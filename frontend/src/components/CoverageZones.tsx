@@ -174,14 +174,10 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
   const frameRef   = useRef(0);
   const poolRef    = useRef<PoolEntry[] | null>(null);
   const satrecsRef = useRef<Record<number, ReturnType<typeof twoline2satrec>>>({});
-
-  const {
-    showCoverage,
-    satelliteCount,
-    orbitAltitudeKm,
-    orbitalPlanes,
-    activeConstellations,
-  } = useStore();
+  const tleDataRef = useRef(tleData);
+  tleDataRef.current = tleData;
+  const constellationsRef = useRef(satelliteConstellations);
+  constellationsRef.current = satelliteConstellations;
 
   // Build satrec cache whenever TLE data changes
   useEffect(() => {
@@ -251,6 +247,18 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
     const pool = poolRef.current;
     if (!pool) return;
 
+    // Read state directly from the store to avoid stale closures
+    const {
+      showCoverage,
+      satelliteCount,
+      orbitAltitudeKm,
+      orbitalPlanes,
+      activeConstellations,
+    } = useStore.getState();
+
+    const curTleData = tleDataRef.current;
+    const curConstellations = constellationsRef.current;
+
     // When coverage is disabled, hide everything immediately
     if (!showCoverage) {
       for (let i = 0; i < MAX_SATS; i++) {
@@ -270,10 +278,10 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
 
     // Uniformly select satelliteCount entries from the catalog
     // (mirrors selectUniformly in Satellites.tsx)
-    const step = tleData.length > 0 ? tleData.length / satelliteCount : 1;
+    const step = curTleData.length > 0 ? curTleData.length / satelliteCount : 1;
     const selectedTLE = Array.from(
-      { length: Math.min(satelliteCount, tleData.length) },
-      (_, i) => tleData[Math.floor(i * step)]
+      { length: Math.min(satelliteCount, curTleData.length) },
+      (_, i) => curTleData[Math.floor(i * step)]
     );
 
     for (let i = 0; i < MAX_SATS; i++) {
@@ -295,7 +303,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         // Derive color from corresponding catalog entry
         const tle = selectedTLE[i];
         if (tle) {
-          const constellation = satelliteConstellations[tle.norad_id];
+          const constellation = curConstellations[tle.norad_id];
           if (constellation && !activeConstellations.includes(constellation)) {
             p.fillMesh.visible = false; p.ringLine.visible = false; continue;
           }
@@ -306,7 +314,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         const tle = selectedTLE[i];
         if (!tle) { p.fillMesh.visible = false; p.ringLine.visible = false; continue; }
 
-        const constellation = satelliteConstellations[tle.norad_id];
+        const constellation = curConstellations[tle.norad_id];
         if (constellation && !activeConstellations.includes(constellation)) {
           p.fillMesh.visible = false; p.ringLine.visible = false; continue;
         }

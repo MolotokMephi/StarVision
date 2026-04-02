@@ -10,6 +10,8 @@ from typing import Dict, Any, List, Optional
 import httpx
 import logging
 
+from satellites import RUSSIAN_CUBESATS
+
 # Anthropic API (через HTTP, без SDK — для простоты)
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -501,26 +503,38 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
     # ── Показать спутник по имени ────────────────────────
     if any(w in msg_lower for w in ["покаж", "найди", "где ", "фокус", "show", "find", "where", "focus"]):
         sat_map = {
-            "скиф": 56200, "skif": 56200,
-            "марафон-1": 56201, "marathon-1": 56201,
-            "марафон-2": 56202, "marathon-2": 56202,
-            "марафон-3": 56203, "marathon-3": 56203,
-            "сириус-1": 44394, "сириуссат-1": 44394, "sirius-1": 44394, "siriussat-1": 44394,
-            "сириус-2": 44395, "sirius-2": 44395,
-            "танюша": 44396, "tanyusha": 44396,
-            "декарт": 49260, "dekart": 49260,
-            "умка": 47951, "umka": 47951,
-            "гонец-21": 40553, "gonets-21": 40553,
-            "гонец-22": 40554, "gonets-22": 40554,
-            "гонец-23": 40555, "gonets-23": 40555,
-            "зоркий": 48850, "zorkiy": 48850,
-            "беркут": 55120, "berkut": 55120,
-            "аист": 55121, "aist": 55121,
+            # Real satellites in our system (correct NORAD IDs)
+            "декарт": 46493, "dekart": 46493,
+            "норби-2": 57179, "norbi-2": 57179, "норби2": 57179,
+            "норби": 46494, "norbi": 46494,
+            "ярило-1": 46490, "yarilo-1": 46490, "ярило1": 46490,
+            "ярило-3": 57198, "yarilo-3": 57198, "ярило3": 57198,
+            "ярило": 57198, "yarilo": 57198,
+            "умка": 57172, "umka": 57172, "умка-1": 57172,
+            "cubesx-hse-3": 57178, "cubesx-3": 57178,
+            "cubesx-hse": 47952, "cubesx": 47952,
+            "геоскан": 53385, "эдельвейс": 53385, "geoscan": 53385, "edelveis": 53385,
+            "монитор": 57184, "monitor": 57184,
+            "самсат": 61784, "samsat": 61784, "ионосфер": 61784,
+            "tusur": 61782, "тусур": 61782,
+            "mirea": 61785, "мирэа": 61785,
+            "горизонт": 61757, "horizont": 61757,
+            "asrtu": 61781,
         }
         for name, nid in sat_map.items():
             if name in msg_lower:
+                sat_info = None
+                for s in RUSSIAN_CUBESATS:
+                    if s.norad_id == nid:
+                        sat_info = s
+                        break
+                sat_name = sat_info.name if sat_info else f"NORAD {nid}"
                 return {
-                    "message": "Focusing camera on satellite." if en else "Навожу камеру на спутник.",
+                    "message": (
+                        f"Focusing camera on {sat_name}."
+                        if en else
+                        f"Навожу камеру на {sat_name}."
+                    ),
                     "actions": [{"type": "focus_satellite", "norad_id": nid}],
                 }
 

@@ -111,7 +111,7 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
 
   return (
     <div
-      className="glass-panel absolute top-4 right-4 w-80 p-4 animate-slide-right z-10"
+      className="glass-panel absolute top-16 right-4 w-80 p-4 animate-slide-right z-10"
       style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}
     >
       {/* Header */}
@@ -210,9 +210,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function DataRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between items-baseline">
-      <span className="text-[11px] text-star-500 font-body">{label}</span>
-      <span className="text-[11px] text-star-200 font-mono">{value}</span>
+    <div className="flex justify-between items-baseline gap-2">
+      <span className="text-[11px] text-star-500 font-body flex-shrink-0">{label}</span>
+      <span className="text-[11px] text-star-200 font-mono text-right break-words min-w-0">{value}</span>
     </div>
   );
 }
