@@ -9,8 +9,6 @@ from typing import List, Dict, Any, Tuple
 from sgp4.api import Satrec, WGS72
 from sgp4.api import jday
 
-from typing import Optional as Opt
-
 from satellites import RUSSIAN_CUBESATS, SatelliteInfo
 
 # ── Константы ───────────────────────────────────────────────────────
