@@ -36,10 +36,13 @@ RESPONSE FORMAT — strictly JSON:
     // {{"type": "set_time_speed", "speed": 10}}
     // {{"type": "toggle_orbits", "visible": true}}
     // {{"type": "toggle_links", "visible": true}}
+    // {{"type": "toggle_coverage", "visible": true}}
+    // {{"type": "toggle_labels", "visible": true}}
     // {{"type": "highlight_constellation", "name": "УниверСат"}}
     // {{"type": "set_satellite_count", "count": 10}}
     // {{"type": "set_comm_range", "range_km": 800}}
     // {{"type": "set_orbit_altitude", "altitude_km": 600}}
+    // {{"type": "set_orbital_planes", "planes": 3}}
     // {{"type": "reset_view"}}
   ]
 }}
@@ -59,6 +62,8 @@ If they ask to speed up/slow down — set_time_speed.
 If they ask about count — use set_satellite_count.
 If they ask about links — toggle_links and/or set_comm_range.
 If they ask about orbit — toggle_orbits and/or set_orbit_altitude.
+If they ask about coverage/footprint — toggle_coverage.
+If they ask about orbital planes — set_orbital_planes.
 """
 
 LANG_INSTRUCTIONS = {
@@ -475,6 +480,39 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
+    # ── Зоны покрытия ─────────────────────────────────────
+    if any(w in msg_lower for w in ["покрыти", "зоны покрыт", "footprint", "coverage", "фут"]):
+        if any(w in msg_lower for w in ["скры", "убери", "выключ", "спряч", "hide", "off", "disable"]):
+            return {
+                "message": "Hiding coverage zones." if en else "Скрываю зоны покрытия.",
+                "actions": [{"type": "toggle_coverage", "visible": False}],
+            }
+        return {
+            "message": (
+                "Enabling coverage zone display! Each zone shows the satellite's ground footprint — "
+                "the area on Earth's surface visible from the spacecraft at 0° elevation."
+                if en else
+                "Включаю отображение зон покрытия! Каждая зона показывает проекцию спутника "
+                "на поверхность Земли — область, видимую с борта КА при угле места 0°."
+            ),
+            "actions": [{"type": "toggle_coverage", "visible": True}],
+        }
+
+    # ── Активные связи — информация ─────────────────────
+    if any(w in msg_lower for w in ["сколько связ", "активных связ", "количество связ", "how many link", "active link", "link count"]):
+        return {
+            "message": (
+                "The current number of active inter-satellite links is shown in the header (ISL counter). "
+                "It depends on the communication range and satellite positions. "
+                "Try enabling links to see them!"
+                if en else
+                "Текущее количество активных межспутниковых связей отображается в шапке (счётчик МСС). "
+                "Оно зависит от дальности связи и позиций спутников. "
+                "Попробуй включить линии связи, чтобы увидеть их!"
+            ),
+            "actions": [{"type": "toggle_links", "visible": True}],
+        }
+
     # ── Высота орбиты ────────────────────────────────────
     if any(w in msg_lower for w in ["высот", "altitude"]):
         nums = re.findall(r'\d+', msg_lower)
@@ -499,6 +537,22 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 ),
                 "actions": [{"type": "set_orbit_altitude", "altitude_km": alt}],
             }
+
+    # ── Подписи спутников ─────────────────────────────────
+    if any(w in msg_lower for w in ["подпис", "метки", "label", "имена спут", "назван спут"]):
+        if any(w in msg_lower for w in ["скры", "убери", "выключ", "спряч", "hide", "off", "disable"]):
+            return {
+                "message": "Hiding satellite labels." if en else "Скрываю подписи спутников.",
+                "actions": [{"type": "toggle_labels", "visible": False}],
+            }
+        return {
+            "message": (
+                "Enabling satellite labels on the visualization."
+                if en else
+                "Включаю подписи спутников на визуализации."
+            ),
+            "actions": [{"type": "toggle_labels", "visible": True}],
+        }
 
     # ── Показать спутник по имени ────────────────────────
     if any(w in msg_lower for w in ["покаж", "найди", "где ", "фокус", "show", "find", "where", "focus"]):
@@ -645,10 +699,11 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
         return {
             "message": (
                 "Here's what I can do:\n"
-                "✦ Tell about satellites: 'Tell me about Sfera', 'What is Gonets?'\n"
-                "✦ Show a satellite: 'Show Skif-D', 'Where is Dekart?'\n"
+                "✦ Tell about satellites: 'Tell me about UmKA-1', 'What is UniverSat?'\n"
+                "✦ Show a satellite: 'Show Dekart', 'Where is Yarilo-3?'\n"
                 "✦ Control speed: 'Speed up 50x', 'Slow down'\n"
                 "✦ Control links: 'Show links', 'Set range 1000 km'\n"
+                "✦ Coverage zones: 'Show coverage', 'Hide coverage'\n"
                 "✦ Change orbits: 'Altitude 600 km', 'Set 10 satellites'\n"
                 "✦ Explain mechanics: 'What is SGP4?', 'Kepler's laws'\n"
                 "✦ Compare: 'Compare Starlink and Sfera'\n"
@@ -659,6 +714,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 "✦ Показать спутник: «Покажи Декарт», «Где Ярило-3?»\n"
                 "✦ Управлять скоростью: «Ускорь в 50 раз», «Замедли»\n"
                 "✦ Управлять связями: «Покажи связи», «Установи дальность 1000 км»\n"
+                "✦ Зоны покрытия: «Покажи покрытие», «Скрой покрытие»\n"
                 "✦ Менять орбиты: «Высота 600 км», «Установи 10 спутников»\n"
                 "✦ Объяснять механику: «Что такое SGP4?», «Законы Кеплера»\n"
                 "✦ Сравнивать: «Сравни Starlink и Сферу»\n"
@@ -755,24 +811,42 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
+    # ── Всё включить / показать всё ───────────────────────
+    if any(w in msg_lower for w in ["покажи всё", "покажи все", "включи всё", "включи все", "show all", "enable all", "show everything"]):
+        return {
+            "message": (
+                "Enabling all visualizations: orbits, links, coverage zones and labels!"
+                if en else
+                "Включаю все визуализации: орбиты, связи, зоны покрытия и подписи!"
+            ),
+            "actions": [
+                {"type": "toggle_orbits", "visible": True},
+                {"type": "toggle_links", "visible": True},
+                {"type": "toggle_coverage", "visible": True},
+                {"type": "toggle_labels", "visible": True},
+            ],
+        }
+
     # ── Общий ответ ──────────────────────────────────────
     return {
         "message": (
             "I am StarAI — StarVision's intelligent assistant. Here's what I can do:\n"
-            "✦ Tell about any satellite in the constellation\n"
-            "✦ Show a satellite in the visualization\n"
-            "✦ Control speed, orbits and links\n"
-            "✦ Explain orbital mechanics and TLE\n\n"
-            "Try: 'Tell me about Sfera', 'Show Gonets', "
-            "'Speed up 50x' or 'What is a cubesat?'"
+            "✦ Tell about satellites: 'Tell me about UmKA-1'\n"
+            "✦ Show a satellite: 'Show Dekart', 'Where is Yarilo-3?'\n"
+            "✦ Control speed: 'Speed up 50x', 'Slow down'\n"
+            "✦ Control links and coverage: 'Show links', 'Show coverage'\n"
+            "✦ Change orbits: 'Altitude 600 km', 'Set 10 satellites'\n"
+            "✦ Explain mechanics: 'What is SGP4?', 'Kepler's laws'\n\n"
+            "Try asking me something!"
             if en else
             "Я StarAI — интеллектуальный ассистент StarVision. Вот что я могу:\n"
-            "✦ Рассказать о любом спутнике в группировке\n"
-            "✦ Показать спутник на визуализации\n"
-            "✦ Управлять скоростью, орбитами и связями\n"
-            "✦ Объяснить орбитальную механику и TLE\n\n"
-            "Попробуй: «Расскажи про УмКА-1», «Покажи Space-Pi», "
-            "«Ускорь в 50 раз» или «Что такое кубсат?»"
+            "✦ Рассказать о спутниках: «Расскажи про УмКА-1»\n"
+            "✦ Показать спутник: «Покажи Декарт», «Где Ярило-3?»\n"
+            "✦ Управлять скоростью: «Ускорь в 50 раз», «Замедли»\n"
+            "✦ Управлять связями и покрытием: «Покажи связи», «Покажи покрытие»\n"
+            "✦ Менять орбиты: «Высота 600 км», «Установи 10 спутников»\n"
+            "✦ Объяснить механику: «Что такое SGP4?», «Законы Кеплера»\n\n"
+            "Попробуй спросить меня о чём-нибудь!"
         ),
         "actions": [],
     }

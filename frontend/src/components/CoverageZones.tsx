@@ -24,7 +24,7 @@ import type { TLEData } from '../types';
 // ── Constants ─────────────────────────────────────────────────────────
 const R_E      = 6371.0;          // Earth radius (km)
 const MU       = 398600.4418;     // GM (km³/s²)
-const SURF     = 1.002;           // Scene-unit radius just above Earth surface
+const SURF     = 1.008;           // Scene-unit radius above Earth surface (enough to avoid z-fighting)
 const SEG      = 64;              // Polygon resolution (ring segments)
 const MAX_SATS = 15;              // Pool size (max satellites)
 const THROTTLE = 3;               // Update every N frames
@@ -207,6 +207,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         opacity:      0.08,
         side:         DoubleSide,
         depthWrite:   false,
+        depthTest:    false,
       });
       const fillMesh = new Mesh(fillGeo, fillMat);
       fillMesh.visible     = false;
@@ -222,6 +223,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         color:       '#3389ff',
         transparent: true,
         opacity:     0.55,
+        depthTest:   false,
       });
       const ringLine = new Line(ringGeo, ringMat);
       ringLine.visible     = false;

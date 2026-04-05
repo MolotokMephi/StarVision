@@ -40,10 +40,13 @@ export function StarAIChat() {
     setTimeSpeed,
     setShowOrbits,
     setShowLinks,
+    setShowCoverage,
+    setShowLabels,
     highlightConstellation,
     setSatelliteCount,
     setCommRangeKm,
     setOrbitAltitudeKm,
+    setOrbitalPlanes,
     resetView,
   } = useStore();
 
@@ -82,6 +85,15 @@ export function StarAIChat() {
           break;
         case 'set_orbit_altitude':
           setOrbitAltitudeKm(action.altitude_km);
+          break;
+        case 'toggle_coverage':
+          setShowCoverage(action.visible);
+          break;
+        case 'toggle_labels':
+          setShowLabels(action.visible);
+          break;
+        case 'set_orbital_planes':
+          setOrbitalPlanes(action.planes);
           break;
         case 'reset_view':
           resetView();
