@@ -153,6 +153,16 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPla
     }
   }, [focusedSatellite]);
 
+  // Reset orbit target to Earth center when follow is disabled via store
+  useEffect(() => {
+    if (!cameraFollowing) {
+      isAnimatingRef.current = false;
+      if (controlsRef.current) {
+        controlsRef.current.target.set(0, 0, 0);
+      }
+    }
+  }, [cameraFollowing]);
+
   useFrame(() => {
     const id = cameraFollowing ? (focusedSatellite ?? selectedSatellite) : null;
 
@@ -163,6 +173,10 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPla
       if (prevDistRef.current > 0 && currentDist > prevDistRef.current + 0.3) {
         setCameraFollowing(false);
         isAnimatingRef.current = false;
+        // Reset orbit target to Earth center so user rotates around Earth
+        if (controlsRef.current) {
+          controlsRef.current.target.set(0, 0, 0);
+        }
         return;
       }
       // Rotation detection — significant user drag breaks follow
@@ -171,6 +185,10 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPla
       if (!isAnimatingRef.current && rotDelta > 0.15) {
         setCameraFollowing(false);
         isAnimatingRef.current = false;
+        // Reset orbit target to Earth center so user rotates around Earth
+        if (controlsRef.current) {
+          controlsRef.current.target.set(0, 0, 0);
+        }
         return;
       }
       prevDistRef.current = currentDist;

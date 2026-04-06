@@ -72,15 +72,15 @@ export default function App() {
   }, [selectedSatellite, tleSource]);
 
   // Предзагрузка орбит для всех спутников (батчами по 4 для снижения нагрузки)
+  // Re-fetches when TLE source changes to get correct orbit paths
   useEffect(() => {
     if (satellites.length === 0) return;
     let cancelled = false;
     const loadBatched = async () => {
-      const toLoad = satellites.filter((s) => !orbitPaths[s.norad_id]);
       const batchSize = 4;
-      for (let i = 0; i < toLoad.length; i += batchSize) {
+      for (let i = 0; i < satellites.length; i += batchSize) {
         if (cancelled) return;
-        const batch = toLoad.slice(i, i + batchSize);
+        const batch = satellites.slice(i, i + batchSize);
         await Promise.allSettled(
           batch.map((sat) =>
             fetchOrbitPath(sat.norad_id, 120, 60, tleSource)
@@ -91,7 +91,7 @@ export default function App() {
     };
     loadBatched();
     return () => { cancelled = true; };
-  }, [satellites]);
+  }, [satellites, tleSource]);
 
   // Маппинг norad_id → constellation
   const satelliteConstellations = useMemo(() => {
