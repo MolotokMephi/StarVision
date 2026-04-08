@@ -104,7 +104,7 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         lon,
         timestamp: new Date(getSimTime()).toISOString(),
       });
-    }, 500);
+    }, intervalMs);
     return () => clearInterval(interval);
   }, [isVirtual, selectedSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount, timeSpeed]);
 

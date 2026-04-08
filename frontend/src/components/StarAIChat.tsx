@@ -61,43 +61,47 @@ export function StarAIChat() {
 
   const executeActions = (actions: any[]) => {
     for (const action of actions) {
-      switch (action.type) {
-        case 'focus_satellite':
-          focusSatellite(action.norad_id);
-          break;
-        case 'set_time_speed':
-          setTimeSpeed(action.speed);
-          break;
-        case 'toggle_orbits':
-          setShowOrbits(action.visible);
-          break;
-        case 'toggle_links':
-          setShowLinks(action.visible);
-          break;
-        case 'highlight_constellation':
-          highlightConstellation(action.name);
-          break;
-        case 'set_satellite_count':
-          setSatelliteCount(action.count);
-          break;
-        case 'set_comm_range':
-          setCommRangeKm(action.range_km);
-          break;
-        case 'set_orbit_altitude':
-          setOrbitAltitudeKm(action.altitude_km);
-          break;
-        case 'toggle_coverage':
-          setShowCoverage(action.visible);
-          break;
-        case 'toggle_labels':
-          setShowLabels(action.visible);
-          break;
-        case 'set_orbital_planes':
-          setOrbitalPlanes(action.planes);
-          break;
-        case 'reset_view':
-          resetView();
-          break;
+      try {
+        switch (action.type) {
+          case 'focus_satellite':
+            focusSatellite(action.norad_id);
+            break;
+          case 'set_time_speed':
+            setTimeSpeed(action.speed);
+            break;
+          case 'toggle_orbits':
+            setShowOrbits(action.visible);
+            break;
+          case 'toggle_links':
+            setShowLinks(action.visible);
+            break;
+          case 'highlight_constellation':
+            highlightConstellation(action.name);
+            break;
+          case 'set_satellite_count':
+            setSatelliteCount(action.count);
+            break;
+          case 'set_comm_range':
+            setCommRangeKm(action.range_km);
+            break;
+          case 'set_orbit_altitude':
+            setOrbitAltitudeKm(action.altitude_km);
+            break;
+          case 'toggle_coverage':
+            setShowCoverage(action.visible);
+            break;
+          case 'toggle_labels':
+            setShowLabels(action.visible);
+            break;
+          case 'set_orbital_planes':
+            setOrbitalPlanes(action.planes);
+            break;
+          case 'reset_view':
+            resetView();
+            break;
+        }
+      } catch (err) {
+        console.warn('StarAI action failed:', action.type, err);
       }
     }
   };
