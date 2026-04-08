@@ -20,7 +20,7 @@
 
 ## Features
 
-- **15 Russian spacecraft** catalog: Sfera, Gonets, SiriusSat, Descartes, UmKA, Zorkiy, Berkut, Aist, Tanyusha
+- **15 Russian spacecraft** catalog (14 active + 1 deorbited): Descartes, NORBI, Yarilo-1, CubeSX-HSE, UmKA-1, NORBI-2, CubeSX-HSE-3, Monitor-2, Yarilo-3, SamSat-Ionosphere, TUSUR GO, RTU MIREA-1, Horizont, ASRTU-1, Geoscan-Edelveis
 - **Client-side SGP4** via `satellite.js` — smooth per-frame animation
 - **Inter-satellite links (ISL)** — per-frame distance calculation with LOS check (Earth shadow)
 - **TLE source: embedded data or CelesTrak** — one-click switching
@@ -44,7 +44,7 @@
 | Orbital tracks | on/off | Show/hide orbit traces |
 | Satellite labels | on/off | Show/hide spacecraft names |
 | Coverage zones | on/off | Show/hide ground coverage footprints |
-| Constellation filter | 7 groups | Selective display by constellation |
+| Constellation filter | 6 groups | Selective display by constellation |
 | Language | RU / EN | Interface language |
 
 ---
@@ -81,15 +81,14 @@ Frontend auto-proxies `/api/*` to `localhost:8000` (configured in `vite.config.t
 
 ## Satellites
 
-| Constellation | Satellites | Purpose | Model |
+| Constellation | Satellites | Purpose | Form factor |
 |---|---|---|---|
-| **Sfera** | Skif-D, Marathon-IoT-1/2/3 | Internet, IoT | 3U |
-| **Gonets** | Gonets-M No. 21/22/23 | Personal satellite communication | 3U |
-| **Educational** | SiriusSat-1/2, Tanyusha-YUZGU-1 | Science, education | 1U |
-| **MIPT** | Descartes | MIPT experiments | 1U |
-| **Bauman MSTU** | UmKA-1 | Educational projects | 1U |
-| **EO** | Zorkiy-2M, Berkut-S | Earth observation | 3U |
-| **Scientific** | Aist-2T | Scientific experiments | 1U |
+| **UniverSat** | Descartes (46493), NORBI (46494), NORBI-2 (57179), SamSat-Ionosphere (61784) | EO, AIS, radiation, ionosphere | 3U / 6U |
+| **Bauman MSTU** | Yarilo-1 (46490), UmKA-1 (57172), Yarilo-3 (57198) | Solar physics, technology demo | 1.5U / 3U |
+| **SPUTNIX** | CubeSX-HSE (47952), CubeSX-HSE-3 (57178) | Earth observation, tech experiments | 3U |
+| **Geoscan** | Geoscan-Edelveis (53385) ⚠ deorbited | Platform test, propulsion | 3U |
+| **SINP MSU** | Monitor-2 (57184) | X-ray / gamma observations | 3U |
+| **Space-Pi** | TUSUR GO (61782), RTU MIREA-1 (61785), Horizont (61757), ASRTU-1 (61781) | Educational, scientific | 3U |
 
 ---
 

@@ -1,10 +1,10 @@
 import { Suspense, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { Vector3, Group } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
-import { Earth } from './Earth';
+import { Earth, EARTH_ROTATION_SPEED } from './Earth';
 import { Satellites } from './Satellites';
 import { InterSatelliteLinks } from './InterSatelliteLinks';
 import { CoverageZones } from './CoverageZones';
@@ -40,10 +40,12 @@ function computeVirtualECI(index: number, total: number, altKm: number, simTimeS
   return { x: xInc * cosR - yInc * sinR, y: xInc * sinR + yInc * cosR, z: zInc };
 }
 
-// ── Сетка координат (экватор + меридианы) ───────────────────────────
+// ── Сетка координат (экватор + круги широты), вращается вместе с Землёй
 function CoordinateGrid() {
-  const points = useMemo(() => {
-    const lines: [number, number, number][][] = [];
+  const groupRef = useRef<Group>(null);
+
+  const lines = useMemo(() => {
+    const result: [number, number, number][][] = [];
 
     // Экватор
     const equator: [number, number, number][] = [];
@@ -51,7 +53,7 @@ function CoordinateGrid() {
       const rad = (i * Math.PI) / 180;
       equator.push([Math.cos(rad) * 1.002, 0, Math.sin(rad) * 1.002]);
     }
-    lines.push(equator);
+    result.push(equator);
 
     // Несколько кругов широты
     for (const latDeg of [30, 60, -30, -60]) {
@@ -63,15 +65,22 @@ function CoordinateGrid() {
         const lonRad = (i * Math.PI) / 180;
         circle.push([r * Math.cos(lonRad), y, r * Math.sin(lonRad)]);
       }
-      lines.push(circle);
+      result.push(circle);
     }
 
-    return lines;
+    return result;
   }, []);
 
+  // Rotate grid in sync with Earth so lat/lon lines stay aligned with the surface
+  useFrame(() => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y = EARTH_ROTATION_SPEED * (getSimTime() / 1000);
+    }
+  });
+
   return (
-    <group>
-      {points.map((line, idx) => {
+    <group ref={groupRef}>
+      {lines.map((line, idx) => {
         const positions = new Float32Array(line.length * 3);
         line.forEach((p, i) => {
           positions[i * 3] = p[0];
@@ -81,12 +90,7 @@ function CoordinateGrid() {
         return (
           <line key={idx}>
             <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                array={positions}
-                count={line.length}
-                itemSize={3}
-              />
+              <bufferAttribute attach="attributes-position" args={[positions, 3]} />
             </bufferGeometry>
             <lineBasicMaterial color="#3389ff" transparent opacity={0.08} />
           </line>

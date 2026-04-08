@@ -184,7 +184,7 @@ async def get_elements(
 # ── Эндпоинт: Межспутниковые связи ────────────────────────────────
 @app.get("/api/links")
 async def get_links(
-    comm_range_km: float = Query(default=3000.0, ge=50.0, le=15000.0),
+    comm_range_km: float = Query(default=3000.0, ge=50.0, le=10000.0),
     timestamp: Optional[str] = None,
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):

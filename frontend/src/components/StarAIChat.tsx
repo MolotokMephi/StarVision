@@ -107,11 +107,17 @@ export function StarAIChat() {
     if (!msg || chatLoading) return;
 
     setInput('');
-    addChatMessage({ role: 'user', content: msg, timestamp: Date.now() });
+    const userMsg = { role: 'user' as const, content: msg, timestamp: Date.now() };
+    addChatMessage(userMsg);
     setChatLoading(true);
 
+    // Build history including the just-added user message to avoid stale-closure issue:
+    // chatMessages state won't reflect the new message until the next render, so we
+    // construct the up-to-date history explicitly.
+    const historyForApi = [...chatMessages, userMsg];
+
     try {
-      const response = await sendChatMessage(msg, chatMessages, lang);
+      const response = await sendChatMessage(msg, historyForApi, lang);
       addChatMessage({
         role: 'assistant',
         content: response.message,

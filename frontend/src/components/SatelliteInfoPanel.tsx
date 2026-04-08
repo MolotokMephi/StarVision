@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
 import { getSimTime } from '../simClock';
@@ -13,7 +13,7 @@ interface SatelliteInfoPanelProps {
 }
 
 export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanelProps) {
-  const { lang, selectedSatellite, selectSatellite, focusSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount } = useStore();
+  const { lang, selectedSatellite, selectSatellite, focusSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount, timeSpeed } = useStore();
 
   const isVirtual = selectedSatellite !== null && selectedSatellite >= 90000;
 
@@ -49,11 +49,19 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
 
   // Client-side telemetry for virtual satellites (NORAD >= 90000)
   const [virtualTelemetry, setVirtualTelemetry] = useState<SatellitePosition | null>(null);
+  // Keep a ref to timeSpeed so the interval callback always reads the latest value
+  const timeSpeedRef = useRef(timeSpeed);
+  timeSpeedRef.current = timeSpeed;
+
   useEffect(() => {
     if (!isVirtual || !selectedSatellite) {
       setVirtualTelemetry(null);
       return;
     }
+    // Update interval adapts to simulation speed: faster sim → shorter interval so the
+    // telemetry panel doesn't lag far behind the 3D position at high time multipliers.
+    const BASE_INTERVAL_MS = 500;
+    const intervalMs = Math.max(50, BASE_INTERVAL_MS / Math.max(1, timeSpeedRef.current));
     const interval = setInterval(() => {
       const idx = selectedSatellite - 90000;
       const a = EARTH_RADIUS + orbitAltitudeKm;
@@ -98,7 +106,7 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
       });
     }, 500);
     return () => clearInterval(interval);
-  }, [isVirtual, selectedSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount]);
+  }, [isVirtual, selectedSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount, timeSpeed]);
 
   const effectivePos = isVirtual ? virtualTelemetry : satPos;
 
