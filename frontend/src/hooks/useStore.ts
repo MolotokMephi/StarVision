@@ -3,6 +3,8 @@ import type { AppState, SatelliteData, SatellitePosition, OrbitPoint, ChatMessag
 
 const ALL_CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
 
+let _highlightTimer: ReturnType<typeof setTimeout> | null = null;
+
 export const useStore = create<AppState>((set, get) => ({
   // Language
   lang: (typeof navigator !== 'undefined' && navigator.language?.startsWith('en') ? 'en' : 'ru') as 'ru' | 'en',
@@ -51,9 +53,15 @@ export const useStore = create<AppState>((set, get) => ({
   setCameraFollowing: (following) => set({ cameraFollowing: following }),
   highlightConstellation: (name) => {
     set({ highlightedConstellation: name });
+    // Cancel previous timer to prevent stacking timeouts on rapid highlights
+    if (_highlightTimer !== null) {
+      clearTimeout(_highlightTimer);
+      _highlightTimer = null;
+    }
     // Auto-reset after 30 s so the rest of the constellation doesn't stay dimmed forever
     if (name !== null) {
-      setTimeout(() => {
+      _highlightTimer = setTimeout(() => {
+        _highlightTimer = null;
         if (get().highlightedConstellation === name) {
           set({ highlightedConstellation: null });
         }

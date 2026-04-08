@@ -143,7 +143,7 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPla
     return new Vector3(pos.x * CAM_SCALE, pos.z * CAM_SCALE, -pos.y * CAM_SCALE);
   }, [orbitAltitudeKm, satelliteCount, orbitalPlanes]);
 
-  // Start animation when focus changes
+  // Start animation when focus or selection changes
   useEffect(() => {
     const id = focusedSatellite ?? selectedSatellite;
     if (id == null) {
@@ -155,7 +155,7 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPla
       prevDistRef.current = camera.position.length();
       prevCamRotRef.current = { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z };
     }
-  }, [focusedSatellite]);
+  }, [focusedSatellite, selectedSatellite, cameraFollowing]);
 
   // Reset orbit target to Earth center when follow is disabled via store
   useEffect(() => {
