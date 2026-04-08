@@ -7,7 +7,7 @@
  * - Источники моделей: процедурные Three.js (BoxGeometry + PlaneGeometry)
  */
 
-import { useRef, useMemo, useEffect, useCallback, memo } from 'react';
+import { useRef, useMemo, useEffect, useCallback, useState, memo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Vector3, Group } from 'three';
@@ -208,7 +208,10 @@ const SatMarker = memo(function SatMarker({
 }: SatMarkerProps) {
   const groupRef = useRef<Group>(null);
   const bodyRef = useRef<Group>(null);
-  const labelVisible = useRef(true);
+  const [labelVisible, setLabelVisible] = useState(true);
+  // Track visibility in a ref to avoid stale closure in setLabelVisible
+  const visibleRef = useRef(true);
+  const frameCountRef = useRef(0);
 
   const color = useMemo(() => getColor(constellation), [constellation]);
   const modelType = useMemo(() => getModelType(constellation), [constellation]);
@@ -229,22 +232,27 @@ const SatMarker = memo(function SatMarker({
         );
       }
     }
-    // Check if satellite is behind Earth (label occlusion)
+    // Check if satellite is behind Earth (label occlusion) — throttled to every 10 frames
     if (groupRef.current) {
-      const satPos = groupRef.current.position;
-      const camPos = camera.position;
-      // Direction from camera to satellite
-      const dx = satPos.x - camPos.x;
-      const dy = satPos.y - camPos.y;
-      const dz = satPos.z - camPos.z;
-      const lenSq = dx * dx + dy * dy + dz * dz;
-      // Closest point on ray to Earth center (0,0,0)
-      const t = Math.max(0, Math.min(1, -(camPos.x * dx + camPos.y * dy + camPos.z * dz) / lenSq));
-      const cx = camPos.x + t * dx;
-      const cy = camPos.y + t * dy;
-      const cz = camPos.z + t * dz;
-      const distToCenter = Math.sqrt(cx * cx + cy * cy + cz * cz);
-      labelVisible.current = distToCenter >= 0.95; // Earth radius = 1 in scene units, slightly lenient
+      frameCountRef.current++;
+      if (frameCountRef.current % 10 === 0) {
+        const satPos = groupRef.current.position;
+        const camPos = camera.position;
+        const dx = satPos.x - camPos.x;
+        const dy = satPos.y - camPos.y;
+        const dz = satPos.z - camPos.z;
+        const lenSq = dx * dx + dy * dy + dz * dz;
+        const t = Math.max(0, Math.min(1, -(camPos.x * dx + camPos.y * dy + camPos.z * dz) / lenSq));
+        const cx = camPos.x + t * dx;
+        const cy = camPos.y + t * dy;
+        const cz = camPos.z + t * dz;
+        const distToCenter = Math.sqrt(cx * cx + cy * cy + cz * cz);
+        const newVisible = distToCenter >= 0.95;
+        if (newVisible !== visibleRef.current) {
+          visibleRef.current = newVisible;
+          setLabelVisible(newVisible);
+        }
+      }
     }
   });
 
@@ -311,12 +319,7 @@ function OrbitLine({ path, color, opacity = 0.3 }: OrbitLineProps) {
   return (
     <line>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          array={positions}
-          count={positions.length / 3}
-          itemSize={3}
-        />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <lineBasicMaterial color={color} transparent opacity={opacity} linewidth={1} />
     </line>
@@ -379,12 +382,7 @@ function VirtualOrbitLine({
   return (
     <line>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          array={positions}
-          count={positions.length / 3}
-          itemSize={3}
-        />
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <lineBasicMaterial color={color} transparent opacity={opacity} linewidth={1} />
     </line>
@@ -480,6 +478,11 @@ export function Satellites({
 
   // Stable getECI factory: returns the same function reference for the same noradId
   const eciCacheRef = useRef<Record<number, () => { x: number; y: number; z: number } | null>>({});
+
+  // Clear ECI function cache when switching modes or TLE source to prevent unbounded growth
+  useEffect(() => {
+    eciCacheRef.current = {};
+  }, [orbitAltitudeKm, tleData]);
 
   const getGetECI = useCallback((noradId: number) => {
     if (!eciCacheRef.current[noradId]) {

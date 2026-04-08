@@ -258,7 +258,10 @@ def get_satellite_by_id(norad_id: int) -> Optional[SatelliteInfo]:
 
 
 def get_tle_data() -> List[dict]:
-    """Вернуть TLE для всех спутников (для фронтенда)."""
+    """Вернуть TLE для активных спутников (для фронтенда).
+    Деорбитированные КА исключаются — их TLE устарели и дают физически
+    бессмысленные координаты.
+    """
     return [
         {
             "norad_id": s.norad_id,
@@ -268,5 +271,5 @@ def get_tle_data() -> List[dict]:
             "tle_line2": s.tle_line2,
         }
         for s in RUSSIAN_CUBESATS
-        if s.tle_line1 and s.tle_line2
+        if s.tle_line1 and s.tle_line2 and s.status != "deorbited"
     ]

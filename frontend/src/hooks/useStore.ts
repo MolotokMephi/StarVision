@@ -3,7 +3,7 @@ import type { AppState, SatelliteData, SatellitePosition, OrbitPoint, ChatMessag
 
 const ALL_CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
 
-export const useStore = create<AppState>((set) => ({
+export const useStore = create<AppState>((set, get) => ({
   // Language
   lang: (typeof navigator !== 'undefined' && navigator.language?.startsWith('en') ? 'en' : 'ru') as 'ru' | 'en',
 
@@ -49,7 +49,17 @@ export const useStore = create<AppState>((set) => ({
   ),
   focusSatellite: (id) => set({ focusedSatellite: id, selectedSatellite: id, cameraFollowing: true }),
   setCameraFollowing: (following) => set({ cameraFollowing: following }),
-  highlightConstellation: (name) => set({ highlightedConstellation: name }),
+  highlightConstellation: (name) => {
+    set({ highlightedConstellation: name });
+    // Auto-reset after 30 s so the rest of the constellation doesn't stay dimmed forever
+    if (name !== null) {
+      setTimeout(() => {
+        if (get().highlightedConstellation === name) {
+          set({ highlightedConstellation: null });
+        }
+      }, 30000);
+    }
+  },
   toggleConstellation: (name) =>
     set((state) => ({
       activeConstellations: state.activeConstellations.includes(name)
