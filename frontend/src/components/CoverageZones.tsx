@@ -286,10 +286,15 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       (_, i) => curTleData[Math.floor(i * step)]
     );
 
+    const constellationNames = Object.keys(CONSTELLATION_COLORS);
+
     for (let i = 0; i < MAX_SATS; i++) {
       const p = pool[i];
 
-      if (i >= satelliteCount || i >= selectedTLE.length) {
+      // In virtual mode, gate only by satelliteCount (no TLE dependency);
+      // in real mode, also gate by available TLE entries.
+      const limit = useVirtual ? satelliteCount : Math.min(satelliteCount, selectedTLE.length);
+      if (i >= limit) {
         p.fillMesh.visible = false;
         p.ringLine.visible = false;
         continue;
@@ -302,15 +307,12 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         // Analytical Walker orbit
         const eci = virtualECI(i, satelliteCount, orbitAltitudeKm, simTimeSec, orbitalPlanes);
         ex = eci.x; ey = eci.y; ez = eci.z;
-        // Derive color from corresponding catalog entry
-        const tle = selectedTLE[i];
-        if (tle) {
-          const constellation = curConstellations[tle.norad_id];
-          if (constellation && !activeConstellations.includes(constellation)) {
-            p.fillMesh.visible = false; p.ringLine.visible = false; continue;
-          }
-          color = getColor(constellation ?? '');
+        // Derive constellation by cycling through names (consistent with Satellites.tsx and ISL)
+        const constellation = constellationNames[i % constellationNames.length];
+        if (!activeConstellations.includes(constellation)) {
+          p.fillMesh.visible = false; p.ringLine.visible = false; continue;
         }
+        color = getColor(constellation);
       } else {
         // SGP4 propagation from TLE
         const tle = selectedTLE[i];

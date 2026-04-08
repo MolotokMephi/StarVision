@@ -277,7 +277,7 @@ const SatMarker = memo(function SatMarker({
       </mesh>
 
       {/* Подпись — hidden when behind Earth via manual occlusion check */}
-      {showLabel && labelVisible.current && (
+      {showLabel && labelVisible && (
         <Html
           position={[0, 0.05, 0]}
           center
@@ -443,8 +443,10 @@ export function Satellites({
   }, [tleData]);
 
   // Advance shared simTime on each frame (single source of truth)
+  // Clamp delta to avoid huge time jumps when returning from background tab
   useFrame((_, delta) => {
-    advanceSimTime(delta * 1000 * timeSpeed);
+    const clampedDelta = Math.min(delta, 0.1);
+    advanceSimTime(clampedDelta * 1000 * timeSpeed);
   });
 
   // ── Фильтрация и выбор спутников ──────────────────────────────────
