@@ -40,14 +40,14 @@ function computeVirtualECI(index: number, total: number, altKm: number, simTimeS
   return { x: xInc * cosR - yInc * sinR, y: xInc * sinR + yInc * cosR, z: zInc };
 }
 
-// ── Сетка координат (экватор + круги широты), вращается вместе с Землёй
+// ── Coordinate grid (equator + latitude circles), rotates with Earth
 function CoordinateGrid() {
   const groupRef = useRef<Group>(null);
 
   const lines = useMemo(() => {
     const result: [number, number, number][][] = [];
 
-    // Экватор
+    // Equator
     const equator: [number, number, number][] = [];
     for (let i = 0; i <= 360; i += 2) {
       const rad = (i * Math.PI) / 180;
@@ -55,7 +55,7 @@ function CoordinateGrid() {
     }
     result.push(equator);
 
-    // Несколько кругов широты
+    // Latitude circles
     for (const latDeg of [30, 60, -30, -60]) {
       const circle: [number, number, number][] = [];
       const latRad = (latDeg * Math.PI) / 180;
@@ -100,7 +100,7 @@ function CoordinateGrid() {
   );
 }
 
-// ── Контроллер камеры: следование за спутником ──────────────────────
+// ── Camera controller: satellite tracking ───────────────────────────
 interface CameraControllerProps {
   tleData: TLEData[];
   orbitAltitudeKm: number;
@@ -233,7 +233,7 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPla
   return null;
 }
 
-// ── Основная 3D-сцена ───────────────────────────────────────────────
+// ── Main 3D scene ───────────────────────────────────────────────────
 interface SceneContentProps {
   positions: SatellitePosition[];
   tleData: TLEData[];
@@ -261,7 +261,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
 
   return (
     <>
-      {/* Камера */}
+      {/* Camera */}
       <PerspectiveCamera makeDefault position={[0, 2, 4]} fov={50} near={0.01} far={1000} />
       <OrbitControls
         ref={controlsRef}
@@ -274,7 +274,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
         dampingFactor={0.05}
       />
 
-      {/* Контроллер камеры: следование за спутником */}
+      {/* Camera controller: satellite tracking */}
       <CameraController
         tleData={tleData}
         orbitAltitudeKm={orbitAltitudeKm}
@@ -283,7 +283,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
         controlsRef={controlsRef}
       />
 
-      {/* Освещение */}
+      {/* Lighting */}
       <ambientLight intensity={0.35} color="#a8d4ff" />
       <directionalLight position={[5, 3, 5]} intensity={1.8} color="#ffffff" />
       <directionalLight position={[-3, -1, -3]} intensity={0.5} color="#5599dd" />
@@ -293,13 +293,13 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
       {/* Stars — reduced count for performance */}
       <Stars radius={100} depth={80} count={1500} factor={3} saturation={0.1} fade speed={0.5} />
 
-      {/* Земля с NASA Blue Marble */}
+      {/* Earth with NASA Blue Marble */}
       <Earth timeSpeed={timeSpeed} />
 
-      {/* Координатная сетка */}
+      {/* Coordinate grid */}
       <CoordinateGrid />
 
-      {/* Спутники */}
+      {/* Satellites */}
       <Satellites
         positions={positions}
         tleData={tleData}
@@ -317,13 +317,13 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
         timeSpeed={timeSpeed}
       />
 
-      {/* Межспутниковые линии связи */}
+      {/* Inter-satellite links */}
       <InterSatelliteLinks
         tleData={tleData}
         satelliteConstellations={satelliteConstellations}
       />
 
-      {/* Зоны покрытия спутников */}
+      {/* Satellite coverage zones */}
       <CoverageZones
         tleData={tleData}
         satelliteConstellations={satelliteConstellations}
@@ -332,7 +332,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
   );
 }
 
-// ── Экспортируемый Canvas ───────────────────────────────────────────
+// ── Exported Canvas ─────────────────────────────────────────────────
 interface Scene3DProps {
   positions: SatellitePosition[];
   tleData: TLEData[];

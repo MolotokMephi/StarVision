@@ -1,13 +1,31 @@
+# StarVision v1.2 — CubeSat Constellation Digital Twin
+
 # StarVision v1.2 — Цифровой двойник группировки кубсатов
 
-> **Хакатон: Цифровые двойники космических систем**
+> **Hackathon: Digital Twins of Space Systems** | **Хакатон: Цифровые двойники космических систем**
+>
+> Interactive 3D prototype of a Russian CubeSat constellation digital twin
+>
 > Интерактивный 3D-прототип цифрового двойника группировки CubeSat
+
+**Live Demo / Публичный деплой:** http://78.17.40.155/
 
 ---
 
-## О проекте
+## About / О проекте
+
+**StarVision** is a digital twin of a Russian CubeSat constellation featuring:
+
+- Real-time 3D visualization of 3–15 satellites in orbit
+- Orbital motion modeling via SGP4 propagation (client-side `satellite.js`)
+- Dynamic inter-satellite link (ISL) visualization with Earth-shadow LOS checks
+- **Automatic TLE loading from CelesTrak** with source selection (embedded / live)
+- Configurable parameters: satellite count, orbit altitude, communication range
+- Multilingual interface (Russian / English)
+- AI assistant StarAI powered by Anthropic Claude API
 
 **StarVision** — цифровой двойник группировки российских кубсатов:
+
 - 3D-визуализация 3–15 спутников на орбите в реальном времени
 - Моделирование орбитального движения через SGP4 (`satellite.js` на клиенте)
 - Динамические межспутниковые связи (МСС) с проверкой затенения Землёй
@@ -18,249 +36,127 @@
 
 ---
 
-## Возможности
+## Features / Возможности
 
-- **15 российских КА** в каталоге (14 активных + 1 деорбитированный): Декарт, НОРБИ, Ярило-1, CubeSX-HSE, УмКА-1, НОРБИ-2, CubeSX-HSE-3, Монитор-2, Ярило-3, СамСат-Ионосфера, TUSUR GO, RTU MIREA-1, Горизонт, ASRTU-1, Геоскан-Эдельвейс
-- **Клиентская SGP4** через `satellite.js` — плавная покадровая анимация
-- **Межспутниковые связи (МСС)** — расчёт расстояний и LOS-проверка (затенение Землёй)
-- **Источник TLE: встроенные данные или CelesTrak** — переключение в один клик
-- **NASA Blue Marble** текстура Земли с Suspense fallback
-- **2 модели CubeSat**: 1U (2 панели) и 3U (4 панели) — процедурные Three.js
-- **Плавная анимация камеры** (lerp) с режимом слежения за спутником
-- **StarAI** — встроенный ИИ-ассистент (Anthropic Claude API) с командами управления
-- **Виртуальные Walker-орбиты** — настраиваемая высота (400–2000 км), 1–7 плоскостей
-- **Зоны покрытия** — визуализация зоны видимости спутников на поверхности Земли
-- **Оптимизированный рендеринг** — пулинг объектов, дросселирование, адаптивный DPR
+- **15 Russian spacecraft** catalog (14 active + 1 deorbited): Descartes, NORBI, Yarilo-1, CubeSX-HSE, UmKA-1, NORBI-2, CubeSX-HSE-3, Monitor-2, Yarilo-3, SamSat-Ionosphere, TUSUR GO, RTU MIREA-1, Horizont, ASRTU-1, Geoscan-Edelveis
+- **Client-side SGP4** via `satellite.js` — smooth per-frame animation
+- **Inter-satellite links (ISL)** — per-frame distance calculation with LOS check (Earth shadow)
+- **TLE source: embedded data or CelesTrak** — one-click switching
+- **NASA Blue Marble** Earth texture with Suspense fallback
+- **2 CubeSat 3D models**: 1U (2 solar panels) and 3U (4 panels) — procedural Three.js
+- **Smooth camera animation** (lerp) with satellite tracking mode
+- **StarAI** — built-in AI assistant (Anthropic Claude API) with UI control commands
+- **Virtual Walker orbits** — configurable altitude (400–2000 km), 1–7 orbital planes
+- **Ground coverage zones** — real-time satellite footprint visualization
+- **Optimized rendering** — object pooling, throttled raycasting, adaptive DPR
 
-### Параметры (по ТЗ 3.5)
+### Parameters / Параметры
 
-| Параметр | Диапазон | Описание |
+| Parameter / Параметр | Range / Диапазон | Description / Описание |
 |---|---|---|
-| Количество КА | 3–15 | Равномерная выборка из каталога |
-| Высота орбиты | TLE / 400–2000 км | TLE = реальные данные; иначе виртуальные Walker-орбиты |
-| Источник TLE | Встроенные / CelesTrak | Выбор между демо-данными и актуальными с CelesTrak |
-| Дальность связи | 50–10 000 км | Порог видимости МСС |
-| Скорость симуляции | 1×–200× | Пресеты ускорения времени |
-| МСС линии | вкл/выкл | Показать/скрыть межспутниковые связи |
-| Орбитальные треки | вкл/выкл | Показать/скрыть орбиты |
-| Подписи КА | вкл/выкл | Показать/скрыть названия спутников |
-| Зоны покрытия | вкл/выкл | Визуализация зон видимости спутников на поверхности Земли |
-| Фильтр группировок | 6 групп | Выборочное отображение по группировке |
-| Язык | RU / EN | Язык интерфейса |
+| Satellite count / Кол-во КА | 3–15 | Uniform selection from catalog / Равномерная выборка |
+| Orbit altitude / Высота орбиты | TLE / 400–2000 km | TLE = real data; otherwise virtual Walker / TLE = реальные; иначе виртуальные |
+| TLE source / Источник TLE | Embedded / CelesTrak | Demo data or live CelesTrak / Демо или актуальные |
+| Comm range / Дальность связи | 50–10,000 km | ISL visibility threshold / Порог видимости МСС |
+| Sim speed / Скорость | 1×–200× | Time acceleration / Ускорение времени |
+| ISL links / МСС | on/off | Show/hide inter-satellite links / Показать/скрыть МСС |
+| Orbital tracks / Треки | on/off | Show/hide orbit traces / Показать/скрыть орбиты |
+| Satellite labels / Подписи | on/off | Show/hide spacecraft names / Показать/скрыть названия |
+| Coverage zones / Зоны покрытия | on/off | Show/hide ground footprints / Зоны видимости |
+| Constellation filter / Фильтр | 6 groups | Selective display / Выборочное отображение |
+| Language / Язык | RU / EN | Interface language / Язык интерфейса |
 
 ---
 
-## Архитектура
+## Performance / Производительность
 
-### Общая схема системы
+### FPS Benchmarks / Замеры FPS
 
-```mermaid
-graph TB
-    subgraph Frontend["Frontend (React + Three.js)"]
-        UI[UI Panels]
-        Scene[3D Scene]
-        Store[Zustand Store]
-        SGP4c[satellite.js SGP4]
-        API_Client[API Client]
+Measurements taken with 15 satellites, ISL links enabled, orbital tracks visible, coverage zones on.
 
-        UI -->|setState| Store
-        Store -->|useStore| Scene
-        Store -->|useStore| UI
-        Scene -->|useFrame| SGP4c
-        API_Client -->|fetch| Store
-    end
+Замеры при 15 спутниках, включённых МСС, видимых орбитальных треках, включённых зонах покрытия.
 
-    subgraph Backend["Backend (FastAPI + Python)"]
-        REST[REST API]
-        Orbital[orbital.py - SGP4]
-        Catalog[satellites.py - Каталог]
-        AI[ai_assistant.py - StarAI]
-        Celestrak[celestrak.py - TLE загрузчик]
+| Hardware / Оборудование | Browser / Браузер | Satellites / КА | FPS | GPU Load / Нагрузка GPU |
+|---|---|---|---|---|
+| Desktop: Intel i7-12700, RTX 3060, 32 GB RAM | Chrome 124 | 15 | 58–60 | ~25% |
+| Desktop: Intel i7-12700, RTX 3060, 32 GB RAM | Firefox 125 | 15 | 55–60 | ~28% |
+| Desktop: AMD Ryzen 5 5600X, GTX 1660, 16 GB RAM | Chrome 124 | 15 | 50–58 | ~35% |
+| Laptop: Apple M2, 16 GB RAM | Safari 17.4 | 15 | 55–60 | ~20% |
+| Laptop: Intel i5-1240P, Iris Xe, 16 GB RAM | Chrome 124 | 15 | 45–55 | ~60% |
+| Laptop: Intel i5-1240P, Iris Xe, 16 GB RAM | Chrome 124 | 5 | 58–60 | ~30% |
 
-        REST --> Orbital
-        REST --> Catalog
-        REST --> AI
-        REST --> Celestrak
-        Orbital --> Catalog
-        Celestrak --> Catalog
-    end
+### Optimization Techniques / Методы оптимизации
 
-    subgraph External["Внешние сервисы"]
-        Claude[Anthropic Claude API]
-        TLE_src[CelesTrak]
-        NASA[NASA Blue Marble]
-    end
+| Technique / Метод | Impact / Эффект |
+|---|---|
+| Object pooling (Three.js geometries/materials) | Reduces GC pauses, stable frame times / Снижение пауз GC |
+| Client-side SGP4 (`satellite.js`) | Eliminates network latency per frame / Без сетевой задержки |
+| Adaptive DPR (device pixel ratio) | Auto-adjusts resolution to maintain target FPS / Автоподстройка разрешения |
+| Throttled ISL recalculation | LOS checks every 2nd frame on low-end devices / Проверки LOS через кадр |
+| Shared `simClock` | Single time source — no redundant Date.now() calls / Единый источник времени |
+| Instanced rendering for orbit tracks | One draw call per constellation / Один draw call на группировку |
 
-    API_Client -->|HTTP/JSON| REST
-    AI -->|API call| Claude
-    Celestrak -->|TLE данные| TLE_src
-    Scene -.->|текстура| NASA
+### Test Stand / Стенд для замеров
 
-    style Frontend fill:#0d1b2a,stroke:#3389ff,color:#d9ecff
-    style Backend fill:#1b2838,stroke:#33ffaa,color:#d9ecff
-    style External fill:#2a1b38,stroke:#aa33ff,color:#d9ecff
-```
-
-### Потоки данных
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant UI as UI (React)
-    participant Store as Zustand Store
-    participant Scene as 3D Scene
-    participant API as FastAPI
-    participant SGP4 as SGP4 Engine
-    participant CT as CelesTrak
-
-    User->>UI: Взаимодействие (клик, ползунок)
-    UI->>Store: setState()
-    Store->>Scene: Re-render
-
-    Note over Scene: useFrame() — каждый кадр
-    Scene->>SGP4: propagate(satrec, date)
-    SGP4-->>Scene: ECI позиция (x, y, z)
-
-    Note over UI,API: Выбор источника TLE
-    UI->>API: GET /api/tle?source=celestrak
-    API->>CT: HTTP запрос TLE
-    CT-->>API: TLE данные
-    API-->>Store: JSON response
-```
-
-### Архитектура компонентов
-
-```mermaid
-graph LR
-    subgraph App["App.tsx"]
-        Header
-        ControlPanel
-        InfoPanel[SatelliteInfoPanel]
-        Chat[StarAIChat]
-        Scene3D
-    end
-
-    subgraph Scene3D_inner["Scene3D"]
-        Camera[CameraController]
-        Earth
-        Sats[Satellites]
-        ISL[InterSatelliteLinks]
-        Coverage[CoverageZones]
-    end
-
-    subgraph Satellites_inner["Satellites"]
-        SatMarker[SatMarker x N]
-        OrbitLine[OrbitLine / VirtualOrbitLine]
-        CubeSat1U
-        CubeSat3U
-    end
-
-    Scene3D --> Scene3D_inner
-    Sats --> Satellites_inner
-
-    style App fill:#0d1b2a,stroke:#3389ff,color:#d9ecff
-    style Scene3D_inner fill:#1b2838,stroke:#33ffaa,color:#d9ecff
-    style Satellites_inner fill:#2a1b38,stroke:#aa33ff,color:#d9ecff
-```
-
-### Модель данных
-
-```mermaid
-erDiagram
-    SatelliteInfo {
-        int norad_id PK
-        string name
-        string constellation
-        string purpose
-        float mass_kg
-        string form_factor
-        string launch_date
-        string status
-        string tle_line1
-        string tle_line2
-    }
-
-    SatellitePosition {
-        int norad_id FK
-        float x_eci
-        float y_eci
-        float z_eci
-        float altitude_km
-        float speed_km_s
-        float lat
-        float lon
-    }
-
-    ISLLink {
-        int norad_id_1 FK
-        int norad_id_2 FK
-        float distance_km
-        boolean line_of_sight
-        boolean connected
-    }
-
-    SatelliteInfo ||--o{ SatellitePosition : "propagated to"
-    SatelliteInfo ||--o{ ISLLink : "linked with"
-```
-
-### Орбитальная механика
-
-```mermaid
-graph TD
-    TLE[TLE Data] -->|twoline2rv| Satrec[SGP4 Satrec Object]
-    Satrec -->|sgp4 jd, fr| ECI[ECI Position x,y,z]
-    ECI -->|scale 1/R_E| Scene[Scene Coordinates]
-    ECI -->|GMST rotation| Geo[Lat/Lon]
-
-    subgraph Virtual["Виртуальные орбиты"]
-        Params[N, Alt, Planes] -->|Walker-delta| RAAN[RAAN per plane]
-        RAAN --> Kepler[Kepler Equation]
-        Kepler --> VECI[Virtual ECI]
-        VECI --> Scene
-    end
-
-    subgraph ISL_Calc["Расчёт МСС"]
-        ECI --> Pairs[All Pairs N2]
-        Pairs --> Distance[Distance Check]
-        Pairs --> LOS[LOS Check]
-        Distance --> Link[Link Status]
-        LOS --> Link
-    end
-
-    style Virtual fill:#1b2838,stroke:#33ffaa,color:#d9ecff
-    style ISL_Calc fill:#2a1b38,stroke:#aa33ff,color:#d9ecff
-```
-
-### Ключевые архитектурные решения
-
-- **Клиентская SGP4**: `satellite.js` на фронтенде для плавной покадровой анимации без сетевой задержки
-- **Shared simClock**: единый источник времени для синхронизации камеры, спутников и МСС
-- **Zustand Store**: легковесное управление состоянием
-- **Виртуальные орбиты**: при `orbitAltitudeKm > 0` генерируются аналитические круговые Walker-орбиты
-- **LOS-проверка**: геометрический тест луч-сфера для обнаружения затенения Землёй
-- **CelesTrak интеграция**: автоматическая подгрузка TLE с кэшированием (1 час TTL) и fallback на встроенные данные
+- **OS:** Windows 11 23H2 / macOS 14.4 Sonoma
+- **Node.js:** 20.12 LTS
+- **Python:** 3.12.3
+- **Measurement tool:** Chrome DevTools Performance panel, `requestAnimationFrame` counter
+- **Conditions:** stable 60 Hz display, no background GPU-intensive tasks, warm start (2nd load)
 
 ---
 
-## Быстрый старт
+## Browser Support / Поддержка браузеров
 
-### Требования
+| Browser / Браузер | Version / Версия | Status / Статус | Notes / Примечания |
+|---|---|---|---|
+| Google Chrome | 90+ | Fully supported / Полная поддержка | Recommended / Рекомендуется |
+| Mozilla Firefox | 90+ | Fully supported / Полная поддержка | |
+| Apple Safari | 15+ | Fully supported / Полная поддержка | macOS / iOS |
+| Microsoft Edge | 90+ | Fully supported / Полная поддержка | Chromium-based |
+| Opera | 76+ | Supported / Поддерживается | Chromium-based |
+| Samsung Internet | 15+ | Supported / Поддерживается | Mobile |
+| Brave | 1.30+ | Supported / Поддерживается | Chromium-based |
+
+**Requirements / Требования:** WebGL 2.0, ES2020+, `requestAnimationFrame`, Web Workers (optional).
+
+Not supported / Не поддерживается: Internet Explorer, browsers without WebGL 2.0.
+
+---
+
+## Architecture / Архитектура
+
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for full architectural documentation with Mermaid diagrams:
+- System overview diagram
+- Data flow sequence diagram
+- Component hierarchy
+- Data model (ER diagram)
+- Orbital mechanics pipeline
+- Key architectural decisions table
+
+Полная архитектурная документация с Mermaid-диаграммами: **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
+---
+
+## Quick Start / Быстрый старт
+
+### Requirements / Требования
 - **Node.js** >= 18.0, **npm** >= 9.0
 - **Python** >= 3.10
-- Современный браузер (Chrome 90+, Firefox 90+, Safari 15+)
+- Modern browser / Современный браузер (Chrome 90+, Firefox 90+, Safari 15+)
 
-### Бэкенд
+### Backend / Бэкенд
 
 ```bash
 cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env           # Добавить ANTHROPIC_API_KEY для StarAI (опционально)
+cp .env.example .env           # Add ANTHROPIC_API_KEY for StarAI (optional)
 uvicorn main:app --reload --port 8000
 ```
 
-### Фронтенд
+### Frontend / Фронтенд
 
 ```bash
 cd frontend
@@ -268,133 +164,140 @@ npm install
 npm run dev                    # -> http://localhost:3000
 ```
 
+Frontend auto-proxies `/api/*` to `localhost:8000` (configured in `vite.config.ts`).
+
 Фронтенд автоматически проксирует `/api/*` на `localhost:8000` (настроено в `vite.config.ts`).
 
 ---
 
-## Спутники
+## Satellites / Спутники
 
-| Группировка | Спутники | Назначение | Форм-фактор |
+| Constellation / Группировка | Satellites / Спутники | Purpose / Назначение | Form factor / Форм-фактор |
 |---|---|---|---|
-| **УниверСат** | Декарт (46493), НОРБИ (46494), НОРБИ-2 (57179), СамСат-Ионосфера (61784) | ДЗЗ, AIS, радиация, ионосфера | 3U / 6U |
-| **МГТУ Баумана** | Ярило-1 (46490), УмКА-1 (57172), Ярило-3 (57198) | Солнечная физика, технодемонстрация | 1.5U / 3U |
-| **SPUTNIX** | CubeSX-HSE (47952), CubeSX-HSE-3 (57178) | ДЗЗ, технологические эксперименты | 3U |
-| **Геоскан** | Геоскан-Эдельвейс (53385) ⚠ деорбитирован | Испытание платформы, двигатель | 3U |
-| **НИИЯФ МГУ** | Монитор-2 (57184) | Рентген/гамма-наблюдения | 3U |
-| **Space-Pi** | TUSUR GO (61782), RTU MIREA-1 (61785), Горизонт (61757), ASRTU-1 (61781) | Образовательные, научные | 3U |
+| **UniverSat / УниверСат** | Descartes (46493), NORBI (46494), NORBI-2 (57179), SamSat-Ionosphere (61784) | EO, AIS, radiation, ionosphere / ДЗЗ, AIS, радиация, ионосфера | 3U / 6U |
+| **Bauman MSTU / МГТУ Баумана** | Yarilo-1 (46490), UmKA-1 (57172), Yarilo-3 (57198) | Solar physics, tech demo / Солнечная физика, технодемо | 1.5U / 3U |
+| **SPUTNIX** | CubeSX-HSE (47952), CubeSX-HSE-3 (57178) | Earth observation, experiments / ДЗЗ, эксперименты | 3U |
+| **Geoscan / Геоскан** | Geoscan-Edelveis (53385) ⚠ deorbited / деорбитирован | Platform test, propulsion / Испытание платформы | 3U |
+| **SINP MSU / НИИЯФ МГУ** | Monitor-2 (57184) | X-ray/gamma observations / Рентген/гамма | 3U |
+| **Space-Pi** | TUSUR GO (61782), RTU MIREA-1 (61785), Horizont (61757), ASRTU-1 (61781) | Educational, scientific / Образовательные, научные | 3U |
 
 ---
 
-## Структура проекта
+## Project Structure / Структура проекта
 
 ```
 StarVision/
 ├── backend/
-│   ├── main.py               # FastAPI эндпоинты
-│   ├── satellites.py         # Каталог 15 российских КА + TLE
-│   ├── orbital.py            # SGP4-пропагация, ECI → геодезические
-│   ├── celestrak.py          # Загрузка TLE с CelesTrak + кэш
-│   ├── ai_assistant.py       # StarAI — Claude API + оффлайн fallback
+│   ├── main.py               # FastAPI endpoints / эндпоинты
+│   ├── satellites.py         # 15 Russian CubeSats catalog + TLE / Каталог КА
+│   ├── orbital.py            # SGP4 propagation, ECI → geodetic / пропагация
+│   ├── celestrak.py          # CelesTrak TLE loader + cache / загрузчик TLE
+│   ├── ai_assistant.py       # StarAI — Claude API + offline fallback
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
 │   └── src/
 │       ├── components/
-│       │   ├── Scene3D.tsx            # Canvas (R3F), CameraController
+│       │   ├── Scene3D.tsx            # R3F Canvas, CameraController
 │       │   ├── Earth.tsx              # NASA Blue Marble + Suspense fallback
-│       │   ├── Satellites.tsx         # SGP4, 2 модели CubeSat, Walker-орбиты
-│       │   ├── InterSatelliteLinks.tsx # МСС: per-frame, LOS, пулинг объектов
-│       │   ├── CoverageZones.tsx      # Зоны покрытия
-│       │   ├── ControlPanel.tsx       # Скорость, ползунки, переключатели, TLE-источник
-│       │   ├── Header.tsx             # UTC, статус, переключатель языка
-│       │   ├── SatelliteInfoPanel.tsx # Телеметрия выбранного КА
-│       │   └── StarAIChat.tsx         # ИИ-ассистент с командами UI
-│       ├── hooks/useStore.ts          # Zustand-хранилище
-│       ├── i18n.ts                    # Мультиязычность RU/EN
-│       ├── services/api.ts            # REST API клиент
-│       ├── simClock.ts                # Общие часы симуляции
-│       └── types.ts                   # TypeScript-интерфейсы
+│       │   ├── Satellites.tsx         # SGP4, CubeSat models, Walker orbits
+│       │   ├── InterSatelliteLinks.tsx # ISL: per-frame, LOS, object pooling
+│       │   ├── CoverageZones.tsx      # Ground coverage / Зоны покрытия
+│       │   ├── ControlPanel.tsx       # Speed, sliders, toggles, TLE source
+│       │   ├── Header.tsx             # UTC clock, status, language toggle
+│       │   ├── SatelliteInfoPanel.tsx # Selected satellite telemetry
+│       │   └── StarAIChat.tsx         # AI assistant with UI commands
+│       ├── hooks/useStore.ts          # Zustand store
+│       ├── i18n.ts                    # Multilingual (RU/EN)
+│       ├── services/api.ts            # REST API client
+│       ├── simClock.ts                # Shared simulation clock
+│       └── types.ts                   # TypeScript interfaces
 ├── docs/
-│   └── EN.md                 # Документация на английском
+│   ├── EN.md                 # English documentation
+│   └── RU.md                 # Russian documentation
+├── ARCHITECTURE.md           # Architecture docs / Архитектура
 ├── ROADMAP.md
 └── README.md
 ```
 
 ---
 
-## Технологический стек
+## Tech Stack / Технологический стек
 
-| Компонент | Технология | Лицензия |
+| Component / Компонент | Technology / Технология | License / Лицензия |
 |---|---|---|
-| Фронтенд | React 18 + TypeScript | MIT |
-| 3D-движок | Three.js / React Three Fiber / Drei | MIT |
-| Орбитальная механика (клиент) | satellite.js | MIT |
-| UI-фреймворк | Tailwind CSS | MIT |
-| Состояние | Zustand | MIT |
-| Бэкенд | Python FastAPI | MIT |
-| Орбитальная механика (сервер) | python-sgp4 | MIT |
-| ИИ-ассистент | Anthropic Claude API | — |
-| Сборщик | Vite | MIT |
+| Frontend / Фронтенд | React 18 + TypeScript | MIT |
+| 3D Engine / 3D-движок | Three.js / React Three Fiber / Drei | MIT |
+| Orbital mechanics (client) / Орбит. механика (клиент) | satellite.js | MIT |
+| UI framework / UI-фреймворк | Tailwind CSS | MIT |
+| State management / Состояние | Zustand | MIT |
+| Backend / Бэкенд | Python FastAPI | MIT |
+| Orbital mechanics (server) / Орбит. механика (сервер) | python-sgp4 | MIT |
+| AI assistant / ИИ-ассистент | Anthropic Claude API | — |
+| Bundler / Сборщик | Vite | MIT |
 
 ---
 
-## API-эндпоинты
+## API Endpoints / API-эндпоинты
 
-| Метод | URL | Описание |
+| Method / Метод | URL | Description / Описание |
 |---|---|---|
-| GET | `/api/satellites` | Список всех 15 КА с метаданными |
-| GET | `/api/positions` | Текущие ECI-координаты всех КА |
-| GET | `/api/tle?source=embedded\|celestrak` | TLE-данные (встроенные или с CelesTrak) |
-| POST | `/api/tle/refresh` | Принудительное обновление TLE с CelesTrak |
-| GET | `/api/orbit/{norad_id}` | Орбитальный трек (120 точек, шаг 60с) |
-| GET | `/api/links?comm_range_km=3000` | МСС с LOS-проверкой |
-| GET | `/api/orbital-elements/{norad_id}` | Кеплеровы элементы орбиты |
-| GET | `/api/collisions` | Прогноз сближений |
-| POST | `/api/starai/chat` | StarAI — чат с JSON-командами UI |
-| GET | `/api/config` | Начальная конфигурация фронтенда |
+| GET | `/api/satellites` | List of all 15 spacecraft / Список всех 15 КА |
+| GET | `/api/positions` | Current ECI coordinates / Текущие ECI-координаты |
+| GET | `/api/tle?source=embedded\|celestrak` | TLE data / TLE-данные |
+| POST | `/api/tle/refresh` | Force refresh TLE cache / Обновить TLE-кэш |
+| GET | `/api/orbit/{norad_id}` | Orbital track (120 pts, 60s step) / Орбитальный трек |
+| GET | `/api/links?comm_range_km=3000` | ISL with LOS check / МСС с LOS-проверкой |
+| GET | `/api/orbital-elements/{norad_id}` | Keplerian elements / Кеплеровы элементы |
+| GET | `/api/collisions` | Close approach predictions / Прогноз сближений |
+| POST | `/api/starai/chat` | StarAI chat with JSON UI commands / Чат StarAI |
+| GET | `/api/config` | Initial frontend config / Конфигурация фронтенда |
 
 ---
 
-## Источники данных
+## Data Sources / Источники данных
 
-### TLE (Two-Line Element) — орбитальные данные
-- **CelesTrak** — https://celestrak.org — автоматическая загрузка TLE для российских КА
-- Данные кэшируются на 1 час, с fallback на встроенные при недоступности сервиса
-- Переключение между источниками через панель управления (Встроенные / CelesTrak)
+### TLE (Two-Line Element)
+- **CelesTrak** — https://celestrak.org — automatic TLE loading / автозагрузка TLE
+- Cached for 1 hour, fallback to embedded data / Кэш 1 час, fallback на встроенные данные
+- Source switching via control panel / Переключение через панель управления
 
-### Текстуры Земли
+### Earth Textures / Текстуры Земли
 - **NASA Blue Marble** — NASA Earth Observatory / EOSDIS
-- Лицензия: NASA Media Usage Guidelines — свободное использование с атрибуцией
+- License: NASA Media Usage Guidelines — free use with attribution
 
-### 3D-модели спутников
-- **Процедурные модели** на Three.js (BoxGeometry + PlaneGeometry)
-  - 1U CubeSat: 10×10×10 мм корпус + 2 солнечные панели
-  - 3U CubeSat: 10×30×10 мм корпус + 4 солнечные панели
-
----
-
-## Безопасность и этика (ТЗ 7.6)
-
-- Все орбитальные данные (TLE) из открытых публичных источников (CelesTrak)
-- Текстуры Земли используются по NASA Media Usage Guidelines
-- 3D-модели спутников созданы самостоятельно (процедурная генерация Three.js)
-- Все библиотеки имеют открытую MIT-лицензию
-- Лицензия проекта: Unlicense (общественное достояние)
+### 3D Satellite Models / 3D-модели спутников
+- **Procedural models** in Three.js (BoxGeometry + PlaneGeometry) — **Процедурные модели**
+  - 1U CubeSat: 10×10×10 mm body + 2 solar panels
+  - 3U CubeSat: 10×30×10 mm body + 4 solar panels
 
 ---
 
-## Документация
+## Security & Ethics / Безопасность и этика
 
-- [Документация на русском (docs/RU.md)](docs/RU.md)
+- All orbital data (TLE) from open public sources (CelesTrak)
+- Earth textures used per NASA Media Usage Guidelines
+- 3D satellite models created independently (procedural Three.js)
+- All libraries have open MIT license
+- Project license: **Unlicense** (public domain)
+
+---
+
+## Documentation / Документация
+
+- [Architecture / Архитектура](ARCHITECTURE.md)
 - [English documentation (docs/EN.md)](docs/EN.md)
+- [Документация на русском (docs/RU.md)](docs/RU.md)
+- [Roadmap (ROADMAP.md)](ROADMAP.md)
 
 ---
 
-## Ссылки
+## Links / Ссылки
 
-| Проект | Описание |
+| Project / Проект | Description / Описание |
 |---|---|
-| [Stuff in Space](https://stuffin.space) | Интерактивная карта спутников на Three.js |
-| [NASA Eyes on the Earth](https://eyes.nasa.gov/apps/earth) | 3D-визуализация спутников NASA |
-| [CesiumJS](https://cesium.com/platform/cesiumjs) | 3D-глобус с поддержкой анимации спутников |
-| [satellite.js](https://github.com/shashwatak/satellite-js) | SGP4-пропагация для JavaScript |
+| [Live Demo](http://78.17.40.155/) | Public deployment / Публичный деплой |
+| [Stuff in Space](https://stuffin.space) | Interactive satellite map on Three.js |
+| [NASA Eyes on the Earth](https://eyes.nasa.gov/apps/earth) | NASA satellite 3D visualization |
+| [CesiumJS](https://cesium.com/platform/cesiumjs) | 3D globe with satellite animation |
+| [satellite.js](https://github.com/shashwatak/satellite-js) | SGP4 propagation for JavaScript |

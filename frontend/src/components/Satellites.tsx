@@ -1,10 +1,10 @@
 /**
  * Satellites.tsx
- * - Клиентская SGP4-пропагация через satellite.js (покадровая анимация)
- * - При orbitAltitudeKm > 0: виртуальные круговые орбиты с равномерным распределением
- * - Равномерный выбор N спутников из каталога (не просто первые N)
- * - 2 типа процедурных 3D-моделей КА: 1U CubeSat и 3U CubeSat с солнечными панелями
- * - Источники моделей: процедурные Three.js (BoxGeometry + PlaneGeometry)
+ * - Client-side SGP4 propagation via satellite.js (per-frame animation)
+ * - When orbitAltitudeKm > 0: virtual circular orbits with uniform distribution
+ * - Uniform selection of N satellites from catalog (not just first N)
+ * - 2 procedural 3D CubeSat models: 1U and 3U with solar panels
+ * - Model source: procedural Three.js (BoxGeometry + PlaneGeometry)
  */
 
 import { useRef, useMemo, useEffect, useCallback, useState, memo } from 'react';
@@ -19,7 +19,7 @@ const EARTH_RADIUS = 6371.0;
 const MU = 398600.4418;
 const SCALE = 1 / EARTH_RADIUS;
 
-// Цвета группировок
+// Constellation colors
 const CONSTELLATION_COLORS: Record<string, string> = {
   'УниверСат': '#3389ff',
   'МГТУ Баумана': '#33ffaa',
@@ -29,7 +29,7 @@ const CONSTELLATION_COLORS: Record<string, string> = {
   'Space-Pi': '#ffdd33',
 };
 
-// Какой тип модели для каждой группировки (0 = 1U/1.5U, 1 = 3U/6U)
+// Model type per constellation (0 = 1U/1.5U, 1 = 3U/6U)
 const CONSTELLATION_MODEL_TYPE: Record<string, number> = {
   'УниверСат': 1,
   'МГТУ Баумана': 0,
@@ -47,14 +47,14 @@ function getModelType(constellation: string): number {
   return CONSTELLATION_MODEL_TYPE[constellation] ?? 0;
 }
 
-// ── Равномерный выбор N элементов из массива ─────────────────────
+// ── Uniform selection of N elements from array ──────────────────
 function selectUniformly<T>(arr: T[], count: number): T[] {
   if (count >= arr.length) return arr;
   const step = arr.length / count;
   return Array.from({ length: count }, (_, i) => arr[Math.floor(i * step)]);
 }
 
-// ── Виртуальные круговые орбиты ────────────────────────────────────
+// ── Virtual circular orbits ────────────────────────────────────────
 function computeCircularOrbitECI(
   index: number,
   total: number,
@@ -63,7 +63,7 @@ function computeCircularOrbitECI(
   planes: number = 1
 ): { x: number; y: number; z: number } {
   const a = EARTH_RADIUS + altitudeKm;
-  const n = Math.sqrt(MU / (a * a * a)); // рад/с
+  const n = Math.sqrt(MU / (a * a * a)); // rad/s
   const incl = (55 * Math.PI) / 180;
   const P = Math.max(1, Math.min(planes, total));
   const satsPerPlane = Math.ceil(total / P);
@@ -92,15 +92,15 @@ function computeCircularOrbitECI(
   };
 }
 
-// ── 3D-модель: 1U CubeSat (10×10×10 см, 2 маленькие панели) ────────
-// Источник: процедурная модель Three.js (BoxGeometry + PlaneGeometry)
+// ── 3D model: 1U CubeSat (10×10×10 cm, 2 small panels) ────────────
+// Source: procedural Three.js model (BoxGeometry + PlaneGeometry)
 function CubeSat1U({ color, emissiveIntensity }: { color: string; emissiveIntensity: number }) {
   const size = 0.012;
   const panelW = 0.022;
   const panelH = 0.008;
   return (
     <group>
-      {/* Корпус */}
+      {/* Body */}
       <mesh>
         <boxGeometry args={[size, size, size]} />
         <meshStandardMaterial
@@ -111,7 +111,7 @@ function CubeSat1U({ color, emissiveIntensity }: { color: string; emissiveIntens
           roughness={0.25}
         />
       </mesh>
-      {/* Солнечные панели (лево/право) */}
+      {/* Solar panels (left/right) */}
       <mesh position={[panelW / 2 + size / 2, 0, 0]}>
         <planeGeometry args={[panelW, panelH]} />
         <meshStandardMaterial
@@ -138,8 +138,8 @@ function CubeSat1U({ color, emissiveIntensity }: { color: string; emissiveIntens
   );
 }
 
-// ── 3D-модель: 3U CubeSat (10×10×30 см, 4 крупные панели) ──────────
-// Источник: процедурная модель Three.js (BoxGeometry + PlaneGeometry)
+// ── 3D model: 3U CubeSat (10×10×30 cm, 4 large panels) ────────────
+// Source: procedural Three.js model (BoxGeometry + PlaneGeometry)
 function CubeSat3U({ color, emissiveIntensity }: { color: string; emissiveIntensity: number }) {
   const w = 0.010;
   const h = 0.030;
@@ -148,7 +148,7 @@ function CubeSat3U({ color, emissiveIntensity }: { color: string; emissiveIntens
   const panelH = 0.024;
   return (
     <group>
-      {/* Корпус 3U */}
+      {/* 3U body */}
       <mesh>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial
@@ -159,7 +159,7 @@ function CubeSat3U({ color, emissiveIntensity }: { color: string; emissiveIntens
           roughness={0.2}
         />
       </mesh>
-      {/* Солнечные панели (4 штуки: лево/право × два яруса) */}
+      {/* Solar panels (4 total: left/right × two tiers) */}
       {[-1, 1].map((side) =>
         [-0.008, 0.008].map((offset, j) => (
           <mesh
@@ -182,7 +182,7 @@ function CubeSat3U({ color, emissiveIntensity }: { color: string; emissiveIntens
   );
 }
 
-// ── Одиночный спутник ────────────────────────────────────────────────
+// ── Single satellite marker ──────────────────────────────────────────
 interface SatMarkerProps {
   name: string;
   constellation: string;
@@ -190,9 +190,9 @@ interface SatMarkerProps {
   isHighlighted: boolean;
   showLabel: boolean;
   onClick: () => void;
-  // Если используется клиентская SGP4 — позиция обновляется в useFrame через groupRef
+  // When using client-side SGP4, position is updated in useFrame via groupRef
   initPos: Vector3;
-  // Для клиентской SGP4: ссылка на функцию получения текущей ECI-позиции
+  // For client-side SGP4: ref to function returning current ECI position
   getECI?: () => { x: number; y: number; z: number } | null;
 }
 
@@ -227,7 +227,7 @@ const SatMarker = memo(function SatMarker({
       if (eci) {
         groupRef.current.position.set(
           eci.x * SCALE,
-          eci.z * SCALE,   // Three.js: Y вверх
+          eci.z * SCALE,   // Three.js: Y is up
           -eci.y * SCALE
         );
       }
@@ -266,7 +266,7 @@ const SatMarker = memo(function SatMarker({
         )}
       </group>
 
-      {/* Свечение вокруг КА */}
+      {/* Glow around satellite */}
       <mesh>
         <sphereGeometry args={[glowScale, 8, 8]} />
         <meshBasicMaterial
@@ -298,7 +298,7 @@ const SatMarker = memo(function SatMarker({
   );
 });
 
-// ── Орбитальный трек ────────────────────────────────────────────────
+// ── Orbital track ───────────────────────────────────────────────────
 interface OrbitLineProps {
   path: OrbitPoint[];
   color: string;
@@ -326,7 +326,7 @@ function OrbitLine({ path, color, opacity = 0.3 }: OrbitLineProps) {
   );
 }
 
-// ── Виртуальный орбитальный трек ────────────────────────────────────
+// ── Virtual orbital track ───────────────────────────────────────────
 function VirtualOrbitLine({
   index,
   total,
@@ -389,10 +389,10 @@ function VirtualOrbitLine({
   );
 }
 
-// ── Все спутники ────────────────────────────────────────────────────
+// ── All satellites ──────────────────────────────────────────────────
 interface SatellitesProps {
-  positions: SatellitePosition[];           // позиции от бэкенда (fallback)
-  tleData: TLEData[];                       // TLE для клиентской SGP4
+  positions: SatellitePosition[];           // positions from backend (fallback)
+  tleData: TLEData[];                       // TLE for client-side SGP4
   orbitPaths: Record<number, OrbitPoint[]>;
   selectedSatellite: number | null;
   highlightedConstellation: string | null;
@@ -423,7 +423,7 @@ export function Satellites({
   orbitalPlanes,
   timeSpeed,
 }: SatellitesProps) {
-  // ── Клиентская SGP4: инициализируем satrec-объекты ────────────────
+  // ── Client-side SGP4: initialize satrec objects ───────────────────
   const satrecsRef = useRef<Array<{
     norad_id: number;
     name: string;
@@ -449,9 +449,9 @@ export function Satellites({
     advanceSimTime(clampedDelta * 1000 * timeSpeed);
   });
 
-  // ── Фильтрация и выбор спутников ──────────────────────────────────
+  // ── Filtering and satellite selection ──────────────────────────────
 
-  // Режим виртуальных орбит: генерируем N виртуальных КА
+  // Virtual orbit mode: generate N virtual satellites
   const virtualSatCount = orbitAltitudeKm > 0 ? satelliteCount : 0;
 
   const virtualSatItems = useMemo(() => {
@@ -464,7 +464,7 @@ export function Satellites({
     return allVirt.filter((sat) => activeConstellations.includes(sat.constellation));
   }, [orbitAltitudeKm, satelliteCount, activeConstellations]);
 
-  // Режим реальных TLE: выбираем N спутников равномерно
+  // Real TLE mode: select N satellites uniformly
   const filteredRealPositions = useMemo(() => {
     if (orbitAltitudeKm > 0) return [];
     const filtered = positions.filter((p) => {
@@ -491,12 +491,12 @@ export function Satellites({
       eciCacheRef.current[noradId] = () => {
         const simTime = getSimTime();
         const { orbitAltitudeKm: alt, virtualSatCount: vsc, orbitalPlanes: planes } = orbitParamsRef.current;
-        // Режим виртуальный
+        // Virtual mode
         if (alt > 0) {
           const idx = noradId - 90000;
           return computeCircularOrbitECI(idx, vsc, alt, simTime / 1000, planes);
         }
-        // Режим реальных TLE через satellite.js
+        // Real TLE mode via satellite.js
         const rec = satrecsRef.current.find((r) => r.norad_id === noradId);
         if (!rec) return null;
         const pv = propagate(rec.satrec, new Date(simTime));
@@ -507,7 +507,7 @@ export function Satellites({
     return eciCacheRef.current[noradId];
   }, []);
 
-  // ── Начальные позиции (для первого рендера, пока нет клиентских данных)
+  // ── Initial positions (for first render, before client data is ready)
   function getInitialPos(noradId: number): Vector3 {
     const simTime = getSimTime();
     if (orbitAltitudeKm > 0) {

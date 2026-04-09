@@ -1,5 +1,5 @@
 """
-orbital.py — Орбитальная механика: SGP4-пропагация, расчёт положений.
+orbital.py — Orbital mechanics: SGP4 propagation, position calculation.
 """
 
 import math
@@ -11,10 +11,10 @@ from sgp4.api import jday
 
 from satellites import RUSSIAN_CUBESATS, SatelliteInfo
 
-# ── Константы ───────────────────────────────────────────────────────
+# ── Constants ──────────────────────────────────────────────────────
 EARTH_RADIUS_KM = 6371.0
-MU = 398600.4418            # км³/с² — гравитационный параметр Земли
-J2 = 1.08263e-3             # вторая зональная гармоника
+MU = 398600.4418            # km³/s² — Earth gravitational parameter
+J2 = 1.08263e-3             # second zonal harmonic
 DEG2RAD = math.pi / 180.0
 RAD2DEG = 180.0 / math.pi
 
@@ -23,14 +23,14 @@ def _resolve_tle(
     sat: SatelliteInfo,
     tle_override: Dict[int, tuple] = None,
 ) -> tuple:
-    """Вернуть (tle_line1, tle_line2) — из override или из встроенных."""
+    """Return (tle_line1, tle_line2) — from override or built-in."""
     if tle_override and sat.norad_id in tle_override:
         return tle_override[sat.norad_id]
     return sat.tle_line1, sat.tle_line2
 
 
 def _with_tle(sat: SatelliteInfo, tle1: str, tle2: str) -> SatelliteInfo:
-    """Создать копию SatelliteInfo с подменёнными TLE-строками."""
+    """Create a copy of SatelliteInfo with replaced TLE lines."""
     return SatelliteInfo(
         norad_id=sat.norad_id,
         name=sat.name,
@@ -47,14 +47,14 @@ def _with_tle(sat: SatelliteInfo, tle1: str, tle2: str) -> SatelliteInfo:
 
 
 def tle_to_satrec(tle1: str, tle2: str) -> Satrec:
-    """Создать объект SGP4 из TLE-строк."""
+    """Create SGP4 object from TLE lines."""
     return Satrec.twoline2rv(tle1, tle2, WGS72)
 
 
 def propagate_satellite(sat_info: SatelliteInfo, dt: datetime) -> Dict[str, Any]:
     """
-    Пропагировать спутник на момент dt.
-    Возвращает ECI-координаты (км), скорость (км/с) и орбитальные элементы.
+    Propagate satellite to time dt.
+    Returns ECI coordinates (km), velocity (km/s) and orbital elements.
     """
     satrec = tle_to_satrec(sat_info.tle_line1, sat_info.tle_line2)
 
@@ -66,21 +66,21 @@ def propagate_satellite(sat_info: SatelliteInfo, dt: datetime) -> Dict[str, Any]
     if error != 0:
         return {"error": f"SGP4 error code {error}"}
 
-    x, y, z = position       # км (ECI)
-    vx, vy, vz = velocity    # км/с
+    x, y, z = position       # km (ECI)
+    vx, vy, vz = velocity    # km/s
 
-    # Высота над поверхностью
+    # Altitude above surface
     r = math.sqrt(x**2 + y**2 + z**2)
     altitude_km = r - EARTH_RADIUS_KM
 
-    # Скорость
+    # Speed
     speed = math.sqrt(vx**2 + vy**2 + vz**2)
 
-    # Орбитальный период (приблизительно)
-    a = satrec.a * EARTH_RADIUS_KM if satrec.a > 1 else r  # полуось
+    # Orbital period (approximate)
+    a = satrec.a * EARTH_RADIUS_KM if satrec.a > 1 else r  # semi-major axis
     period_min = 2 * math.pi * math.sqrt(a**3 / MU) / 60.0
 
-    # Географические координаты (упрощённый ECI → lat/lon)
+    # Geographic coordinates (simplified ECI → lat/lon)
     lat, lon = eci_to_geodetic(x, y, z, jd + fr)
 
     return {
@@ -98,11 +98,11 @@ def propagate_satellite(sat_info: SatelliteInfo, dt: datetime) -> Dict[str, Any]
 
 
 def eci_to_geodetic(x: float, y: float, z: float, jd_total: float) -> Tuple[float, float]:
-    """Преобразование ECI → геодезические координаты (lat, lon в градусах)."""
+    """Convert ECI → geodetic coordinates (lat, lon in degrees)."""
     r = math.sqrt(x**2 + y**2 + z**2)
     lat = math.asin(z / r) * RAD2DEG
 
-    # Звёздное время (GMST) для пересчёта в долготу
+    # Greenwich Mean Sidereal Time (GMST) for longitude conversion
     t = (jd_total - 2451545.0) / 36525.0
     gmst = 280.46061837 + 360.98564736629 * (jd_total - 2451545.0) + \
            0.000387933 * t**2 - t**3 / 38710000.0
@@ -118,14 +118,14 @@ def propagate_all(
     dt: datetime = None,
     tle_override: Dict[int, tuple] = None,
 ) -> List[Dict[str, Any]]:
-    """Пропагировать все спутники на момент dt (или текущий UTC).
+    """Propagate all satellites to time dt (or current UTC).
 
     Args:
-        dt: момент времени (UTC). По умолчанию — текущий UTC.
+        dt: time moment (UTC). Defaults to current UTC.
         tle_override: dict norad_id → (tle_line1, tle_line2).
-            Если передан, для каждого спутника используются TLE из этого dict
-            (вместо встроенных). Спутники, отсутствующие в dict, пропагируются
-            со встроенными TLE.
+            If provided, TLE from this dict is used for each satellite
+            (instead of built-in). Satellites missing from dict are propagated
+            with built-in TLE.
     """
     if dt is None:
         dt = datetime.now(timezone.utc)
@@ -145,8 +145,8 @@ def propagate_orbit_path(sat_info: SatelliteInfo, dt_start: datetime,
                          steps: int = 120, step_sec: float = 60.0,
                          tle_override: Dict[int, tuple] = None) -> List[Dict[str, float]]:
     """
-    Рассчитать точки орбиты для визуализации трека.
-    По умолчанию: 120 точек с шагом 60 сек = 2 часа трека.
+    Calculate orbit points for track visualization.
+    Default: 120 points at 60s step = 2 hours of track.
     """
     tle1, tle2 = _resolve_tle(sat_info, tle_override)
     satrec = tle_to_satrec(tle1, tle2)
@@ -175,8 +175,8 @@ def predict_collisions(
     tle_override: Dict[int, tuple] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Прогнозирование потенциальных коллизий (сближений).
-    Проверяет все пары спутников на минимальное расстояние в заданном временном окне.
+    Predict potential collisions (close approaches).
+    Checks all satellite pairs for minimum distance within the given time window.
     """
     dt_start = datetime.now(timezone.utc)
     steps = int(hours_ahead * 3600 / step_sec)
@@ -188,10 +188,10 @@ def predict_collisions(
     satrecs = [(s, tle_to_satrec(s.tle_line1, s.tle_line2)) for s in sats_with_tle]
 
     close_approaches: List[Dict[str, Any]] = []
-    # Для каждой пары находим минимальное расстояние за период
+    # Find minimum distance for each pair over the period
     pair_min: Dict[tuple, Dict[str, Any]] = {}
 
-    for step_i in range(0, steps, max(1, steps // 200)):  # Ограничиваем шаги для оптимизации
+    for step_i in range(0, steps, max(1, steps // 200)):  # Limit steps for optimization
         offset = step_i * step_sec
         dt = dt_start + timedelta(seconds=offset)
         jd, fr = jday(dt.year, dt.month, dt.day,
@@ -239,8 +239,8 @@ def optimize_plane_distribution(
     inclination_deg: float = 55.0,
 ) -> Dict[str, Any]:
     """
-    Расчёт оптимального распределения КА по орбитальным плоскостям (Walker constellation).
-    Возвращает параметры Walker-δ constellation: T/P/F.
+    Calculate optimal satellite distribution across orbital planes (Walker constellation).
+    Returns Walker-delta constellation parameters: T/P/F.
     """
     T = num_satellites  # Total satellites
     P = max(1, min(num_planes, T))  # Number of planes
@@ -248,7 +248,7 @@ def optimize_plane_distribution(
     remainder = T % P
     F = 1  # Phase factor (0..P-1), optimal for coverage is usually 1
 
-    # Оптимальный F для максимального покрытия
+    # Optimal F for maximum coverage
     if P > 1:
         F = max(1, P // 2)
 
@@ -298,7 +298,7 @@ def get_orbital_elements(
     sat_info: SatelliteInfo,
     tle_override: Dict[int, tuple] = None,
 ) -> Dict[str, Any]:
-    """Извлечь кеплеровы элементы из TLE."""
+    """Extract Keplerian elements from TLE."""
     tle1, tle2 = _resolve_tle(sat_info, tle_override)
     satrec = tle_to_satrec(tle1, tle2)
 
@@ -307,10 +307,10 @@ def get_orbital_elements(
     ecc = satrec.ecco
     argp = satrec.argpo * RAD2DEG
     mean_anom = satrec.mo * RAD2DEG
-    mean_motion = satrec.no_kozai * 1440.0 / (2 * math.pi)  # рад/мин → об/день
+    mean_motion = satrec.no_kozai * 1440.0 / (2 * math.pi)  # rad/min → rev/day
 
-    # Полуось из среднего движения
-    n_rad_s = satrec.no_kozai / 60.0  # рад/мин → рад/с
+    # Semi-major axis from mean motion
+    n_rad_s = satrec.no_kozai / 60.0  # rad/min → rad/s
     a_km = (MU / (n_rad_s**2))**(1/3) if n_rad_s > 0 else 0
 
     return {

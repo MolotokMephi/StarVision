@@ -1,7 +1,7 @@
 """
-celestrak.py — Автоматическая подгрузка TLE-данных с CelesTrak.
-Поддерживает кэширование с TTL, валидацию TLE, защиту от гонок
-и fallback на встроенные данные.
+celestrak.py — Automatic TLE data loading from CelesTrak.
+Supports caching with TTL, TLE validation, race condition protection,
+and fallback to built-in data.
 """
 
 import asyncio
@@ -17,14 +17,14 @@ from satellites import RUSSIAN_CUBESATS
 
 logger = logging.getLogger(__name__)
 
-# URL-ы CelesTrak для получения TLE (CubeSat и amateur-radio — покрывают российские кубсаты)
+# CelesTrak URLs for TLE (CubeSat and amateur-radio — cover Russian CubeSats)
 CELESTRAK_URLS = [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
 ]
 
-# Кэш TLE-данных: norad_id -> (tle_line1, tle_line2)
-CACHE_TTL_SEC = 3600  # обновлять раз в час
+# TLE data cache: norad_id -> (tle_line1, tle_line2)
+CACHE_TTL_SEC = 3600  # refresh every hour
 _tle_cache: Dict[int, Tuple[str, str]] = {}
 _tle_cache_epochs: Dict[int, float] = {}  # norad_id -> TLE epoch (julian day fraction)
 _cache_timestamp: float = 0.0
@@ -36,7 +36,7 @@ _TLE_LINE2_RE = re.compile(r'^2 \d{5} ')
 
 
 def _tle_checksum(line: str) -> int:
-    """Вычислить контрольную сумму строки TLE (modulo 10)."""
+    """Calculate TLE line checksum (modulo 10)."""
     total = 0
     for ch in line[:68]:
         if ch.isdigit():
@@ -47,7 +47,7 @@ def _tle_checksum(line: str) -> int:
 
 
 def _validate_tle_line(line: str, line_num: int) -> bool:
-    """Проверить формат и контрольную сумму строки TLE."""
+    """Validate format and checksum of a TLE line."""
     if len(line) < 69:
         return False
     pattern = _TLE_LINE1_RE if line_num == 1 else _TLE_LINE2_RE
@@ -58,8 +58,8 @@ def _validate_tle_line(line: str, line_num: int) -> bool:
 
 
 def _tle_epoch_age_days(line1: str) -> float:
-    """Рассчитать возраст TLE-набора в днях относительно текущего UTC.
-    Возвращает кол-во дней с момента эпохи TLE. Отрицательное — TLE из будущего.
+    """Calculate TLE epoch age in days relative to current UTC.
+    Returns number of days since TLE epoch. Negative means TLE is from the future.
     """
     try:
         year_2d = int(line1[18:20])
@@ -71,11 +71,11 @@ def _tle_epoch_age_days(line1: str) -> float:
         now = datetime.now(timezone.utc)
         return (now - epoch).total_seconds() / 86400.0
     except (ValueError, IndexError):
-        return 9999.0  # не удалось разобрать — считаем очень старым
+        return 9999.0  # failed to parse — treat as very old
 
 
 def _is_tle_valid(line1: str, line2: str, max_age_days: float = 365.0) -> bool:
-    """Полная валидация TLE-набора: формат, контрольные суммы и свежесть эпохи."""
+    """Full TLE validation: format, checksums, and epoch freshness."""
     if not _validate_tle_line(line1, 1):
         return False
     if not _validate_tle_line(line2, 2):
@@ -87,14 +87,14 @@ def _is_tle_valid(line1: str, line2: str, max_age_days: float = 365.0) -> bool:
 
 
 def _parse_tle_text(text: str) -> Dict[int, Tuple[str, str]]:
-    """Разобрать текст в формате TLE (3 строки на спутник: имя, line1, line2).
-    Валидирует каждый набор — пропускает повреждённые записи."""
+    """Parse TLE-format text (3 lines per satellite: name, line1, line2).
+    Validates each set — skips corrupted entries."""
     lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
     result: Dict[int, Tuple[str, str]] = {}
 
     i = 0
     while i < len(lines) - 2:
-        # Пропускаем строки, не являющиеся началом блока TLE
+        # Skip lines that are not the start of a TLE block
         if not lines[i + 1].startswith("1 ") or not lines[i + 2].startswith("2 "):
             i += 1
             continue
@@ -109,7 +109,7 @@ def _parse_tle_text(text: str) -> Dict[int, Tuple[str, str]]:
             else:
                 logger.debug("TLE validation failed for NORAD %d (checksum or epoch)", norad_id)
         except (ValueError, IndexError):
-            # Некорректный формат строки TLE — пропускаем этот спутник
+            # Invalid TLE line format — skip this satellite
             logger.debug("Failed to parse NORAD ID from TLE line: %r", line1)
 
         i += 3
@@ -130,7 +130,7 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
         norad_ids = [s.norad_id for s in RUSSIAN_CUBESATS]
 
     async with _cache_lock:
-        # Проверяем кэш (внутри лока, чтобы избежать двойных запросов)
+        # Check cache (inside lock to prevent duplicate requests)
         now = time.time()
         if _tle_cache and (now - _cache_timestamp) < CACHE_TTL_SEC:
             cached = {nid: _tle_cache[nid] for nid in norad_ids if nid in _tle_cache}
@@ -138,13 +138,13 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                 logger.debug("TLE cache hit: %d/%d satellites", len(cached), len(norad_ids))
                 return cached
 
-        # Пробуем загрузить из групповых файлов
+        # Try to load from group files
         all_tle: Dict[int, Tuple[str, str]] = {}
         target_set = set(norad_ids)
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                # Загружаем групповые файлы параллельно
+                # Load group files in parallel
                 tasks = []
                 for url in CELESTRAK_URLS:
                     tasks.append(_fetch_url(client, url))
@@ -157,7 +157,7 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                             if nid in target_set:
                                 all_tle[nid] = tle
 
-                # Для спутников, не найденных в групповых файлах — запрос поштучно
+                # For satellites not found in group files — fetch individually
                 # Skip deorbited satellites (CelesTrak returns 404 for them)
                 deorbited_ids = {
                     s.norad_id for s in RUSSIAN_CUBESATS
@@ -180,7 +180,7 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
         except Exception as e:
             logger.error("CelesTrak network error: %s", e)
 
-        # Обновляем кэш
+        # Update cache
         if all_tle:
             _tle_cache.update(all_tle)
             _cache_timestamp = time.time()
@@ -190,7 +190,7 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                 "TLE cache updated: %d/%d satellites fetched from CelesTrak",
                 fetched_count, total_requested,
             )
-            # Возвращаем всё что нашли (из свежего фетча + из кэша для недостающих)
+            # Return everything found (from fresh fetch + from cache for missing)
             result = {}
             for nid in norad_ids:
                 if nid in all_tle:
@@ -199,7 +199,7 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                     result[nid] = _tle_cache[nid]
             return result
 
-        # Сеть упала — отдаём устаревший кэш если он есть
+        # Network down — serve stale cache if available
         if _tle_cache:
             logger.warning("CelesTrak unavailable, using stale cache (%d entries)", len(_tle_cache))
             return {nid: _tle_cache[nid] for nid in norad_ids if nid in _tle_cache}
@@ -208,7 +208,7 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
 
 
 async def _fetch_url(client: httpx.AsyncClient, url: str) -> Dict[int, Tuple[str, str]]:
-    """Загрузить и разобрать TLE с одного URL."""
+    """Fetch and parse TLE from a single URL."""
     try:
         resp = await client.get(url)
         if resp.status_code == 404:
@@ -225,7 +225,7 @@ async def _fetch_url(client: httpx.AsyncClient, url: str) -> Dict[int, Tuple[str
 
 
 def get_embedded_tle() -> Dict[int, Tuple[str, str]]:
-    """Получить встроенные TLE-данные из каталога."""
+    """Get built-in TLE data from catalog."""
     return {
         s.norad_id: (s.tle_line1, s.tle_line2)
         for s in RUSSIAN_CUBESATS
@@ -235,7 +235,7 @@ def get_embedded_tle() -> Dict[int, Tuple[str, str]]:
 
 async def get_tle_by_source(source: str = "embedded") -> List[dict]:
     """
-    Получить TLE-данные в зависимости от источника.
+    Get TLE data depending on source.
     source: "embedded" | "celestrak"
     """
     if source == "celestrak":
@@ -254,7 +254,7 @@ async def get_tle_by_source(source: str = "embedded") -> List[dict]:
                         "source": "celestrak",
                     })
                 elif s.tle_line1 and s.tle_line2:
-                    # Fallback на встроенные данные для этого спутника
+                    # Fallback to built-in data for this satellite
                     result.append({
                         "norad_id": s.norad_id,
                         "name": s.name,
@@ -266,14 +266,14 @@ async def get_tle_by_source(source: str = "embedded") -> List[dict]:
             return result
         except Exception as e:
             logger.error("CelesTrak fetch failed, falling back to embedded: %s", e)
-            # Полный fallback
+            # Full fallback
             return _get_embedded_tle_list()
     else:
         return _get_embedded_tle_list()
 
 
 def _get_embedded_tle_list() -> List[dict]:
-    """Встроенные TLE как список dict."""
+    """Built-in TLE as list of dicts."""
     return [
         {
             "norad_id": s.norad_id,
@@ -289,7 +289,7 @@ def _get_embedded_tle_list() -> List[dict]:
 
 
 def invalidate_cache():
-    """Сбросить кэш TLE (для принудительного обновления)."""
+    """Reset TLE cache (for forced refresh)."""
     global _tle_cache, _cache_timestamp, _tle_cache_epochs
     _tle_cache = {}
     _tle_cache_epochs = {}
