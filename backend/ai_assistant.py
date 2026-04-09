@@ -1,6 +1,6 @@
 """
-ai_assistant.py — StarAI: ИИ-ассистент, способный отвечать на вопросы
-и генерировать команды управления интерфейсом.
+ai_assistant.py — StarAI: AI assistant that answers questions
+and generates UI control commands.
 """
 
 import json
@@ -12,7 +12,7 @@ import logging
 
 from satellites import RUSSIAN_CUBESATS
 
-# Anthropic API (через HTTP, без SDK — для простоты)
+# Anthropic API (via HTTP, no SDK — for simplicity)
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 MODEL = "claude-sonnet-4-20250514"
@@ -83,10 +83,10 @@ async def ask_starai(
     lang: str = "ru",
 ) -> Dict[str, Any]:
     """
-    Отправить сообщение StarAI и получить ответ + команды.
+    Send a message to StarAI and receive response + UI commands.
     """
     if not ANTHROPIC_API_KEY:
-        # Фоллбэк без API-ключа — базовые ответы
+        # Fallback without API key — basic responses
         return _fallback_response(user_message, lang)
 
     messages = []
@@ -113,14 +113,14 @@ async def ask_starai(
             response.raise_for_status()
             data = response.json()
 
-        # Извлекаем текст ответа
+        # Extract response text
         content = data.get("content", [])
         text = ""
         for block in content:
             if block.get("type") == "text":
                 text += block.get("text", "")
 
-        # Парсим JSON из ответа (с поддержкой ```json блоков)
+        # Parse JSON from response (with ```json block support)
         try:
             parsed = json.loads(text)
             return {
@@ -128,7 +128,7 @@ async def ask_starai(
                 "actions": parsed.get("actions", []),
             }
         except json.JSONDecodeError:
-            # Попытка извлечь JSON из markdown code block
+            # Try to extract JSON from markdown code block
             import re
             json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
             if json_match:
@@ -140,7 +140,7 @@ async def ask_starai(
                     }
                 except json.JSONDecodeError:
                     pass
-            # Попытка найти JSON объект в тексте
+            # Try to find JSON object in text
             json_obj_match = re.search(r'\{[\s\S]*"message"[\s\S]*\}', text)
             if json_obj_match:
                 try:
@@ -154,8 +154,8 @@ async def ask_starai(
             return {"message": text, "actions": []}
 
     except Exception:
-        # Логируем подробности ошибки на сервере, не раскрывая их пользователю
-        logging.exception("Ошибка соединения с StarAI")
+        # Log full error on server, do not expose details to user
+        logging.exception("StarAI connection error")
         return {
             "message": (
                 "StarAI connection error. Working in offline mode."
@@ -167,13 +167,13 @@ async def ask_starai(
 
 
 def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
-    """Офлайн-ответы без API-ключа — расширенный набор команд."""
+    """Offline responses without API key — extended command set."""
     msg_lower = user_message.lower().strip()
     en = lang == "en"
 
     import re
 
-    # ── Приветствия ──────────────────────────────────────
+    # ── Greetings ────────────────────────────────────────
     if any(w in msg_lower for w in ["привет", "здравствуй", "хай", "hello", "добрый", "здрасте", "hi "]):
         return {
             "message": (
@@ -188,7 +188,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── УниверСат ─────────────────────────────────────────
+    # ── UniverSat ─────────────────────────────────────────
     if any(w in msg_lower for w in ["универсат", "universat", "норби", "norbi"]):
         return {
             "message": (
@@ -203,7 +203,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "highlight_constellation", "name": "УниверСат"}],
         }
 
-    # ── Декарт ───────────────────────────────────────────
+    # ── Dekart ───────────────────────────────────────────
     if any(w in msg_lower for w in ["декарт", "dekart"]):
         return {
             "message": (
@@ -218,7 +218,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "focus_satellite", "norad_id": 46493}],
         }
 
-    # ── Баумана / УмКА / Ярило ───────────────────────────
+    # ── Bauman MSTU / UmKA / Yarilo ─────────────────────
     if any(w in msg_lower for w in ["бауман", "умка", "мгту", "ярило", "bauman", "umka", "yarilo"]):
         if any(w in msg_lower for w in ["ярило", "yarilo"]):
             return {
@@ -253,7 +253,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             ],
         }
 
-    # ── SPUTNIX / CubeSX / ВШЭ ──────────────────────────
+    # ── SPUTNIX / CubeSX / HSE ───────────────────────────
     if any(w in msg_lower for w in ["sputnix", "спутникс", "вшэ", "hse", "cubesx"]):
         return {
             "message": (
@@ -271,7 +271,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             ],
         }
 
-    # ── Геоскан ──────────────────────────────────────────
+    # ── Geoscan ──────────────────────────────────────────
     if any(w in msg_lower for w in ["геоскан", "эдельвейс", "geoscan", "edelveis"]):
         return {
             "message": (
@@ -286,7 +286,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "focus_satellite", "norad_id": 53385}],
         }
 
-    # ── Монитор / НИИЯФ ─────────────────────────────────
+    # ── Monitor / SINP MSU ───────────────────────────────
     if any(w in msg_lower for w in ["монитор", "ниияф", "monitor", "sinp", "кодиз", "kodiz"]):
         return {
             "message": (
@@ -321,7 +321,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "highlight_constellation", "name": "Space-Pi"}],
         }
 
-    # ── СамСат ───────────────────────────────────────────
+    # ── SamSat ───────────────────────────────────────────
     if any(w in msg_lower for w in ["самсат", "самар", "ионосфер", "samsat", "samara", "ionospher"]):
         return {
             "message": (
@@ -334,9 +334,9 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "focus_satellite", "norad_id": 61784}],
         }
 
-    # ── Управление скоростью ─────────────────────────────
+    # ── Speed control ────────────────────────────────────
     if any(w in msg_lower for w in ["ускор", "быстр", "speed up", "faster"]):
-        # Попытка извлечь число
+        # Try to extract a number
         nums = re.findall(r'\d+', msg_lower)
         speed = int(nums[0]) if nums else 50
         speed = min(200, max(1, speed))
@@ -372,7 +372,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 "actions": [{"type": "set_time_speed", "speed": speed}],
             }
 
-    # ── Орбиты ───────────────────────────────────────────
+    # ── Orbits ───────────────────────────────────────────
     if any(w in msg_lower for w in ["орбит", "трек", "траектор", "orbit", "track", "trajectory"]):
         if any(w in msg_lower for w in ["скры", "убери", "выключ", "спряч", "hide", "off", "disable"]):
             return {
@@ -389,7 +389,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "toggle_orbits", "visible": True}],
         }
 
-    # ── Линии связи ──────────────────────────────────────
+    # ── ISL links ────────────────────────────────────────
     if any(w in msg_lower for w in ["связ", "линии", "мсс", "isl", "link"]):
         if any(w in msg_lower for w in ["скры", "убери", "выключ", "спряч", "hide", "off", "disable"]):
             return {
@@ -407,7 +407,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 ),
                 "actions": [{"type": "toggle_links", "visible": True}],
             }
-        # Информационный ответ про связи
+        # Informational response about links
         return {
             "message": (
                 "Inter-satellite link (ISL) is data transmission between satellites "
@@ -426,7 +426,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "toggle_links", "visible": True}],
         }
 
-    # ── Количество спутников ─────────────────────────────
+    # ── Satellite count ───────────────────────────────────
     if any(w in msg_lower for w in ["количеств", "сколько спут", "число спут", "добав", "установи", "how many sat", "satellite count", "set satellite", "add satellite"]):
         nums = re.findall(r'\d+', msg_lower)
         if nums:
@@ -452,7 +452,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Дальность связи ──────────────────────────────────
+    # ── Communication range ───────────────────────────────
     if any(w in msg_lower for w in ["дальност", "радиус связ", "зона связ", "comm range", "communication range"]):
         nums = re.findall(r'\d+', msg_lower)
         if nums:
@@ -480,7 +480,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Зоны покрытия ─────────────────────────────────────
+    # ── Coverage zones ────────────────────────────────────
     if any(w in msg_lower for w in ["покрыти", "зоны покрыт", "footprint", "coverage", "фут"]):
         if any(w in msg_lower for w in ["скры", "убери", "выключ", "спряч", "hide", "off", "disable"]):
             return {
@@ -498,7 +498,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "toggle_coverage", "visible": True}],
         }
 
-    # ── Активные связи — информация ─────────────────────
+    # ── Active links — information ────────────────────────
     if any(w in msg_lower for w in ["сколько связ", "активных связ", "количество связ", "how many link", "active link", "link count"]):
         return {
             "message": (
@@ -513,7 +513,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "toggle_links", "visible": True}],
         }
 
-    # ── Высота орбиты ────────────────────────────────────
+    # ── Orbit altitude ────────────────────────────────────
     if any(w in msg_lower for w in ["высот", "altitude"]):
         nums = re.findall(r'\d+', msg_lower)
         if nums:
@@ -538,7 +538,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 "actions": [{"type": "set_orbit_altitude", "altitude_km": alt}],
             }
 
-    # ── Подписи спутников ─────────────────────────────────
+    # ── Satellite labels ──────────────────────────────────
     if any(w in msg_lower for w in ["подпис", "метки", "label", "имена спут", "назван спут"]):
         if any(w in msg_lower for w in ["скры", "убери", "выключ", "спряч", "hide", "off", "disable"]):
             return {
@@ -554,7 +554,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "toggle_labels", "visible": True}],
         }
 
-    # ── Показать спутник по имени ────────────────────────
+    # ── Show satellite by name ────────────────────────────
     if any(w in msg_lower for w in ["покаж", "найди", "где ", "фокус", "show", "find", "where", "focus"]):
         sat_map = {
             # Real satellites in our system (correct NORAD IDs)
@@ -592,7 +592,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                     "actions": [{"type": "focus_satellite", "norad_id": nid}],
                 }
 
-    # ── Сброс ────────────────────────────────────────────
+    # ── Reset ─────────────────────────────────────────────
     if any(w in msg_lower for w in ["сброс", "reset", "начал", "по умолч", "верн", "default"]):
         return {
             "message": (
@@ -603,7 +603,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [{"type": "reset_view"}],
         }
 
-    # ── Кеплер / орбитальная механика ────────────────────
+    # ── Kepler / orbital mechanics ────────────────────────
     if any(w in msg_lower for w in ["кеплер", "механик", "физик", "гравитац", "закон", "kepler", "mechanic", "physic", "gravit", "law"]):
         return {
             "message": (
@@ -625,7 +625,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Starlink / OneWeb / сравнение ────────────────────
+    # ── Starlink / OneWeb / comparison ───────────────────
     if any(w in msg_lower for w in ["starlink", "oneweb", "сравн", "илон", "маск", "compar", "elon", "musk"]):
         return {
             "message": (
@@ -671,7 +671,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Кубсат / формфактор ──────────────────────────────
+    # ── CubeSat / form factor ─────────────────────────────
     if any(w in msg_lower for w in ["кубсат", "cubesat", "формфактор", "форм-фактор", "размер", "form factor", "size"]):
         return {
             "message": (
@@ -694,7 +694,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Помощь ───────────────────────────────────────────
+    # ── Help ──────────────────────────────────────────────
     if any(w in msg_lower for w in ["помощ", "help", "команд", "что ты умеешь", "что можешь", "возможност", "what can you", "capabilities"]):
         return {
             "message": (
@@ -723,7 +723,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Коллизии / столкновения ────────────────────────────
+    # ── Collisions / close approaches ────────────────────
     if any(w in msg_lower for w in ["коллизи", "столкнов", "сближен", "опасност", "collision", "close approach"]):
         return {
             "message": (
@@ -748,7 +748,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Оптимизация плоскостей ──────────────────────────
+    # ── Plane optimization ────────────────────────────────
     if any(w in msg_lower for w in ["оптимиз", "walker", "распредел", "плоскост", "optimiz", "plane", "distribut"]):
         return {
             "message": (
@@ -779,7 +779,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Космос / общие вопросы ───────────────────────────
+    # ── Space / general questions ─────────────────────────
     if any(w in msg_lower for w in ["космос", "мкс", "ракет", "запуск", "space", "iss", "rocket", "launch"]):
         return {
             "message": (
@@ -798,7 +798,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Благодарность ────────────────────────────────────
+    # ── Thanks ────────────────────────────────────────────
     if any(w in msg_lower for w in ["спасибо", "благодар", "круто", "класс", "отлично", "thanks", "thank you", "great", "awesome"]):
         return {
             "message": (
@@ -811,7 +811,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             "actions": [],
         }
 
-    # ── Всё включить / показать всё ───────────────────────
+    # ── Show everything / enable all ─────────────────────
     if any(w in msg_lower for w in ["покажи всё", "покажи все", "включи всё", "включи все", "show all", "enable all", "show everything"]):
         return {
             "message": (
@@ -827,7 +827,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
             ],
         }
 
-    # ── Общий ответ ──────────────────────────────────────
+    # ── General response ──────────────────────────────────
     return {
         "message": (
             "I am StarAI — StarVision's intelligent assistant. Here's what I can do:\n"

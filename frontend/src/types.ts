@@ -45,13 +45,13 @@ export interface AppState {
   // Language
   lang: 'ru' | 'en';
 
-  // Данные
+  // Data
   satellites: SatelliteData[];
   positions: SatellitePosition[];
   orbitPaths: Record<number, OrbitPoint[]>;
   tleData: TLEData[];
 
-  // Управление
+  // Controls
   timeSpeed: number;
   showOrbits: boolean;
   showLabels: boolean;
@@ -63,11 +63,11 @@ export interface AppState {
   highlightedConstellation: string | null;
   activeConstellations: string[];
   satelliteCount: number;
-  tleSource: 'embedded' | 'celestrak';  // источник TLE-данных
-  orbitAltitudeKm: number;   // 0 = используются реальные TLE; >0 = виртуальные круговые орбиты
-  commRangeKm: number;       // порог дальности связи (50–2000 км)
-  activeLinksCount: number;  // текущее количество активных МСС
-  orbitalPlanes: number;     // количество орбитальных плоскостей (1–7)
+  tleSource: 'embedded' | 'celestrak';  // TLE data source
+  orbitAltitudeKm: number;   // 0 = real TLE; >0 = virtual circular orbits
+  commRangeKm: number;       // communication range threshold (50–2000 km)
+  activeLinksCount: number;  // current number of active ISL
+  orbitalPlanes: number;     // number of orbital planes (1–7)
 
   // StarAI
   chatOpen: boolean;

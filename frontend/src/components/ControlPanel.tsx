@@ -47,7 +47,7 @@ export function ControlPanel() {
       const res = await fetchTLE(source);
       setTleData(res.tle_data);
     } catch {
-      // fallback — не меняем данные при ошибке
+      // fallback — keep existing data on error
     } finally {
       setTleLoading(false);
     }

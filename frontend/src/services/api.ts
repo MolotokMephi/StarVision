@@ -1,5 +1,5 @@
 /**
- * api.ts — Сервис взаимодействия с StarVision Backend.
+ * api.ts — StarVision Backend API client.
  */
 
 import type {
@@ -23,7 +23,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// ── Спутники ────────────────────────────────────────────────────────
+// ── Satellites ──────────────────────────────────────────────────────
 
 export async function fetchSatellites(): Promise<APISatellitesResponse> {
   return fetchJSON('/satellites');
@@ -81,7 +81,7 @@ export async function sendChatMessage(
   });
 }
 
-// ── Конфигурация ────────────────────────────────────────────────────
+// ── Configuration ───────────────────────────────────────────────────
 
 export async function fetchConfig() {
   return fetchJSON<{

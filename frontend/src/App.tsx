@@ -25,22 +25,22 @@ export default function App() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Загрузка списка спутников
+  // Load satellite list
   useEffect(() => {
     fetchSatellites()
       .then((res) => setSatellites(res.satellites))
       .catch(console.error);
   }, []);
 
-  // Загрузка TLE для клиентской SGP4
+  // Load TLE for client-side SGP4
   useEffect(() => {
     fetchTLE()
       .then((res) => setTleData(res.tle_data))
       .catch(console.error);
   }, []);
 
-  // Загрузка позиций (периодическая — резервная для fallback и info panel)
-  // Используем симулированное время для синхронизации с 3D-сценой
+  // Load positions (periodic — fallback for info panel)
+  // Use simulated time to stay in sync with the 3D scene
   const loadPositions = useCallback(async () => {
     try {
       const simTimestamp = new Date(getSimTime()).toISOString();
@@ -53,8 +53,8 @@ export default function App() {
 
   useEffect(() => {
     loadPositions();
-    // Медленный поллинг — клиентская SGP4 даёт плавную анимацию
-    // Увеличен минимальный интервал для снижения нагрузки на бэкенд
+    // Slow polling — client-side SGP4 provides smooth animation
+    // Minimum interval increased to reduce backend load
     const ms = Math.max(5000, 10000 / timeSpeed);
     intervalRef.current = setInterval(loadPositions, ms);
     return () => {
@@ -62,7 +62,7 @@ export default function App() {
     };
   }, [timeSpeed, loadPositions]);
 
-  // Загрузка орбит при выборе спутника (пропускаем виртуальные NORAD 90000+)
+  // Load orbit when a satellite is selected (skip virtual NORAD 90000+)
   useEffect(() => {
     if (selectedSatellite && selectedSatellite < 90000 && !orbitPaths[selectedSatellite]) {
       fetchOrbitPath(selectedSatellite, 180, 60, tleSource)
@@ -71,7 +71,7 @@ export default function App() {
     }
   }, [selectedSatellite, tleSource]);
 
-  // Предзагрузка орбит для всех спутников (батчами по 4 для снижения нагрузки)
+  // Preload orbits for all satellites (batches of 4 to reduce load)
   // Re-fetches when TLE source changes to get correct orbit paths
   useEffect(() => {
     if (satellites.length === 0) return;
@@ -93,14 +93,14 @@ export default function App() {
     return () => { cancelled = true; };
   }, [satellites, tleSource]);
 
-  // Маппинг norad_id → constellation
+  // Map norad_id → constellation
   const satelliteConstellations = useMemo(() => {
     const map: Record<number, string> = {};
     satellites.forEach((s) => (map[s.norad_id] = s.constellation));
     return map;
   }, [satellites]);
 
-  // Подсчёт отображаемых КА с учётом режима (виртуальный / реальный)
+  // Count displayed satellites based on mode (virtual / real)
   const displayedCount = useMemo(() => {
     if (orbitAltitudeKm > 0) {
       // Virtual mode: all satelliteCount are "active", filtered by constellations

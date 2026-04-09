@@ -1,7 +1,7 @@
 """
-satellites.py — Каталог российских кубсатов (CubeSat).
-Реальные спутники с валидными TLE-данными (синтетические эпохи, реалистичные орбитальные параметры).
-В продакшене — подгрузка актуальных TLE с CelesTrak / SpaceTrack.
+satellites.py — Russian CubeSat catalog.
+Real satellites with valid TLE data (synthetic epochs, realistic orbital parameters).
+In production — load current TLE from CelesTrak / SpaceTrack.
 """
 
 from dataclasses import dataclass, field
@@ -14,7 +14,7 @@ class SatelliteInfo:
     constellation: str
     purpose: str
     mass_kg: float
-    form_factor: str          # "1U", "1.5U", "3U", "6U" и т.д.
+    form_factor: str          # "1U", "1.5U", "3U", "6U" etc.
     launch_date: str
     status: str               # "active" | "inactive" | "deorbited"
     tle_line1: str = ""
@@ -22,10 +22,10 @@ class SatelliteInfo:
     description: str = ""
 
 
-# ── Российские кубсаты (реальные КА) ─────────────────────────────────
+# ── Russian CubeSats (real spacecraft) ────────────────────────────────
 RUSSIAN_CUBESATS: List[SatelliteInfo] = [
 
-    # --- Запуск 2020-09-28, Союз-2.1б, Плесецк (ССО ~500 км, i≈97.4°) ---
+    # --- Launch 2020-09-28, Soyuz-2.1b, Plesetsk (SSO ~500 km, i≈97.4°) ---
     SatelliteInfo(
         norad_id=46493,
         name="Декарт",
@@ -66,7 +66,7 @@ RUSSIAN_CUBESATS: List[SatelliteInfo] = [
         description="Кубсат МГТУ им. Баумана для исследования солнечной активности и солнечно-земных связей."
     ),
 
-    # --- Запуск 2021-03-22, Союз-2.1а, Байконур (ССО ~530 км, i≈97.5°) ---
+    # --- Launch 2021-03-22, Soyuz-2.1a, Baikonur (SSO ~530 km, i≈97.5°) ---
     SatelliteInfo(
         norad_id=47952,
         name="CubeSX-HSE",
@@ -81,7 +81,7 @@ RUSSIAN_CUBESATS: List[SatelliteInfo] = [
         description="Первый спутник ВШЭ на платформе SPUTNIX — экспериментальная камера на ступенчатых (Френелевских) линзах."
     ),
 
-    # --- Запуск 2022-08-09, Союз-2.1б, Байконур (ССО ~480 км, i≈97.4°) ---
+    # --- Launch 2022-08-09, Soyuz-2.1b, Baikonur (SSO ~480 km, i≈97.4°) ---
     SatelliteInfo(
         norad_id=53385,
         name="Геоскан-Эдельвейс",
@@ -96,7 +96,7 @@ RUSSIAN_CUBESATS: List[SatelliteInfo] = [
         description="Первый частный наноспутник из Санкт-Петербурга (Геоскан). Лётные испытания платформы, газовый двигатель ОКБ «Факел». Сведён с орбиты 2024-02-18."
     ),
 
-    # --- Запуск 2023-06-27, Союз-2.1б, Восточный (ССО ~550 км, i≈97.6°) ---
+    # --- Launch 2023-06-27, Soyuz-2.1b, Vostochny (SSO ~550 km, i≈97.6°) ---
     SatelliteInfo(
         norad_id=57172,
         name="УмКА-1",
@@ -163,7 +163,7 @@ RUSSIAN_CUBESATS: List[SatelliteInfo] = [
         description="Кубсат МГТУ Баумана — измерение солнечной энергии, отражённой Землёй, и магнитного поля по трём осям."
     ),
 
-    # --- Запуск 2024-11-05, Союз-2.1б, Восточный (ССО ~550 км, i≈97.6°) ---
+    # --- Launch 2024-11-05, Soyuz-2.1b, Vostochny (SSO ~550 km, i≈97.6°) ---
     SatelliteInfo(
         norad_id=61784,
         name="СамСат-Ионосфера",
@@ -233,7 +233,7 @@ RUSSIAN_CUBESATS: List[SatelliteInfo] = [
 
 
 def get_all_satellites() -> List[dict]:
-    """Вернуть все спутники как список dict."""
+    """Return all satellites as a list of dicts."""
     return [
         {
             "norad_id": s.norad_id,
@@ -258,9 +258,9 @@ def get_satellite_by_id(norad_id: int) -> Optional[SatelliteInfo]:
 
 
 def get_tle_data() -> List[dict]:
-    """Вернуть TLE для активных спутников (для фронтенда).
-    Деорбитированные КА исключаются — их TLE устарели и дают физически
-    бессмысленные координаты.
+    """Return TLE for active satellites (for frontend).
+    Deorbited spacecraft are excluded — their TLE are stale and produce
+    physically meaningless coordinates.
     """
     return [
         {

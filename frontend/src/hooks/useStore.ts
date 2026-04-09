@@ -84,7 +84,7 @@ export const useStore = create<AppState>((set, get) => ({
   addChatMessage: (msg) =>
     set((state) => {
       const messages = [...state.chatMessages, msg];
-      // Ограничиваем историю чата до 50 сообщений
+      // Limit chat history to 50 messages
       return { chatMessages: messages.length > 50 ? messages.slice(-50) : messages };
     }),
   setChatLoading: (loading) => set({ chatLoading: loading }),

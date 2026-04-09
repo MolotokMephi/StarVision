@@ -1,6 +1,6 @@
 """
 main.py — StarVision Backend (FastAPI)
-Цифровой двойник группировки российских кубсатов.
+Digital twin of a Russian CubeSat constellation.
 """
 
 import os
@@ -19,23 +19,23 @@ from orbital import (
 from ai_assistant import ask_starai
 from celestrak import get_tle_by_source, invalidate_cache, fetch_celestrak_tle
 
-# ── Приложение ──────────────────────────────────────────────────────
+# ── Application ─────────────────────────────────────────────────────
 app = FastAPI(
     title="StarVision API",
-    description="API цифрового двойника группировки российских кубсатов",
+    description="Digital twin API for Russian CubeSat constellation",
     version="1.2.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # В проде — конкретный домен фронта
+    allow_origins=["*"],        # In production — specific frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ── Модели запросов ─────────────────────────────────────────────────
+# ── Request models ──────────────────────────────────────────────────
 class ChatMessage(BaseModel):
     role: str       # "user" | "assistant"
     content: str
@@ -54,11 +54,11 @@ class SimulationParams(BaseModel):
     selected_constellations: List[str] = []
 
 
-# ── Хелпер: TLE override ──────────────────────────────────────────
+# ── Helper: TLE override ──────────────────────────────────────────
 async def _get_tle_override(source: str) -> Optional[dict]:
-    """Вернуть dict norad_id → (line1, line2) для переданного источника.
-    Для 'embedded' возвращает None (orbital.py использует встроенные TLE).
-    Для 'celestrak' — загружает с CelesTrak.
+    """Return dict norad_id → (line1, line2) for the given source.
+    For 'embedded' returns None (orbital.py uses built-in TLE).
+    For 'celestrak' — fetches from CelesTrak.
     """
     if source != "celestrak":
         return None
@@ -68,7 +68,7 @@ async def _get_tle_override(source: str) -> Optional[dict]:
         return None
 
 
-# ── Эндпоинты: Спутники ────────────────────────────────────────────
+# ── Endpoints: Satellites ───────────────────────────────────────────
 @app.get("/")
 async def root():
     return {
@@ -80,17 +80,17 @@ async def root():
 
 @app.get("/api/satellites")
 async def list_satellites():
-    """Список всех спутников с метаданными."""
+    """List all satellites with metadata."""
     sats = get_all_satellites()
     return {"satellites": sats, "count": len(sats)}
 
 
 @app.get("/api/satellites/{norad_id}")
 async def get_satellite(norad_id: int):
-    """Информация о конкретном спутнике."""
+    """Information about a specific satellite."""
     sat = get_satellite_by_id(norad_id)
     if not sat:
-        raise HTTPException(status_code=404, detail="Спутник не найден")
+        raise HTTPException(status_code=404, detail="Satellite not found")
     return {
         "norad_id": sat.norad_id,
         "name": sat.name,
@@ -107,9 +107,9 @@ async def get_satellite(norad_id: int):
 @app.get("/api/tle")
 async def get_tle(source: str = Query(default="embedded", pattern="^(embedded|celestrak)$")):
     """
-    TLE-данные для клиентской SGP4-пропагации.
-    ?source=embedded — встроенные данные (по умолчанию)
-    ?source=celestrak — загрузка с CelesTrak (с fallback на встроенные)
+    TLE data for client-side SGP4 propagation.
+    ?source=embedded — built-in data (default)
+    ?source=celestrak — load from CelesTrak (with fallback to built-in)
     """
     tle_data = await get_tle_by_source(source)
     return {"tle_data": tle_data, "source": source}
@@ -117,7 +117,7 @@ async def get_tle(source: str = Query(default="embedded", pattern="^(embedded|ce
 
 @app.post("/api/tle/refresh")
 async def refresh_tle():
-    """Принудительно обновить TLE-кэш с CelesTrak."""
+    """Force refresh TLE cache from CelesTrak."""
     invalidate_cache()
     tle_data = await get_tle_by_source("celestrak")
     return {
@@ -127,23 +127,23 @@ async def refresh_tle():
     }
 
 
-# ── Эндпоинты: Орбитальная механика ────────────────────────────────
+# ── Endpoints: Orbital mechanics ────────────────────────────────────
 @app.get("/api/positions")
 async def get_positions(
     timestamp: Optional[str] = None,
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
     """
-    Текущие позиции всех спутников (ECI + geo).
-    ?timestamp=2026-03-29T12:00:00Z — для конкретного момента.
-    ?source=embedded|celestrak — источник TLE-данных.
+    Current positions of all satellites (ECI + geo).
+    ?timestamp=2026-03-29T12:00:00Z — for a specific moment.
+    ?source=embedded|celestrak — TLE data source.
     """
     dt = None
     if timestamp:
         try:
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный формат timestamp")
+            raise HTTPException(status_code=400, detail="Invalid timestamp format")
     tle_override = await _get_tle_override(source)
     return {
         "positions": propagate_all(dt, tle_override=tle_override),
@@ -159,10 +159,10 @@ async def get_orbit_path(
     step_sec: float = Query(default=60.0, ge=10, le=600),
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
-    """Орбитальный трек для визуализации."""
+    """Orbital track for visualization."""
     sat = get_satellite_by_id(norad_id)
     if not sat:
-        raise HTTPException(status_code=404, detail="Спутник не найден")
+        raise HTTPException(status_code=404, detail="Satellite not found")
     tle_override = await _get_tle_override(source)
     path = propagate_orbit_path(sat, datetime.now(timezone.utc), steps, step_sec, tle_override=tle_override)
     return {"norad_id": norad_id, "name": sat.name, "path": path, "steps": steps, "source": source}
@@ -173,15 +173,15 @@ async def get_elements(
     norad_id: int,
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
-    """Кеплеровы элементы орбиты."""
+    """Keplerian orbital elements."""
     sat = get_satellite_by_id(norad_id)
     if not sat:
-        raise HTTPException(status_code=404, detail="Спутник не найден")
+        raise HTTPException(status_code=404, detail="Satellite not found")
     tle_override = await _get_tle_override(source)
     return get_orbital_elements(sat, tle_override=tle_override)
 
 
-# ── Эндпоинт: Межспутниковые связи ────────────────────────────────
+# ── Endpoint: Inter-satellite links ────────────────────────────────
 @app.get("/api/links")
 async def get_links(
     comm_range_km: float = Query(default=3000.0, ge=50.0, le=10000.0),
@@ -189,11 +189,11 @@ async def get_links(
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
     """
-    Расчёт межспутниковых связей (ISL).
-    Возвращает все пары спутников с расстоянием и статусом связи.
-    ?comm_range_km=500 — порог дальности (км)
-    ?timestamp=... — момент расчёта (по умолчанию текущий UTC)
-    ?source=embedded|celestrak — источник TLE-данных.
+    Calculate inter-satellite links (ISL).
+    Returns all satellite pairs with distance and link status.
+    ?comm_range_km=500 — range threshold (km)
+    ?timestamp=... — calculation time (defaults to current UTC)
+    ?source=embedded|celestrak — TLE data source.
     """
     import math
 
@@ -202,13 +202,13 @@ async def get_links(
         try:
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный формат timestamp")
+            raise HTTPException(status_code=400, detail="Invalid timestamp format")
 
     tle_override = await _get_tle_override(source)
     positions = propagate_all(dt, tle_override=tle_override)
 
     def has_los(p1, p2):
-        """Проверка прямой видимости (линии связи не пересекает Землю)."""
+        """Check line-of-sight (link does not intersect Earth)."""
         R = 6371.0
         ax, ay, az = p1["eci"]["x"], p1["eci"]["y"], p1["eci"]["z"]
         bx, by, bz = p2["eci"]["x"], p2["eci"]["y"], p2["eci"]["z"]
@@ -250,7 +250,7 @@ async def get_links(
     }
 
 
-# ── Эндпоинт: Прогнозирование коллизий ────────────────────────────
+# ── Endpoint: Collision prediction ─────────────────────────────────
 @app.get("/api/collisions")
 async def get_collisions(
     threshold_km: float = Query(default=100.0, ge=1.0, le=1000.0),
@@ -258,9 +258,9 @@ async def get_collisions(
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
     """
-    Прогнозирование потенциальных коллизий между спутниками.
-    Возвращает пары с минимальным расстоянием ≤ threshold_km за период hours_ahead.
-    ?source=embedded|celestrak — источник TLE-данных.
+    Predict potential collisions between satellites.
+    Returns pairs with minimum distance <= threshold_km over hours_ahead period.
+    ?source=embedded|celestrak — TLE data source.
     """
     tle_override = await _get_tle_override(source)
     approaches = predict_collisions(threshold_km, hours_ahead, tle_override=tle_override)
@@ -274,7 +274,7 @@ async def get_collisions(
     }
 
 
-# ── Эндпоинт: Оптимизация распределения по плоскостям ─────────────
+# ── Endpoint: Plane distribution optimization ─────────────────────
 @app.get("/api/optimize-planes")
 async def get_optimized_planes(
     num_satellites: int = Query(default=12, ge=3, le=50),
@@ -283,36 +283,36 @@ async def get_optimized_planes(
     inclination_deg: float = Query(default=55.0, ge=0.0, le=180.0),
 ):
     """
-    Расчёт оптимального Walker-δ распределения КА по орбитальным плоскостям.
+    Calculate optimal Walker-delta satellite distribution across orbital planes.
     """
     result = optimize_plane_distribution(num_satellites, num_planes, altitude_km, inclination_deg)
     return result
 
 
-# ── Эндпоинт: StarAI ───────────────────────────────────────────────
+# ── Endpoint: StarAI ────────────────────────────────────────────────
 @app.post("/api/starai/chat")
 async def starai_chat(req: ChatRequest):
-    """Чат с StarAI — ответ + команды для интерфейса."""
+    """Chat with StarAI — response + UI commands."""
     history = [{"role": m.role, "content": m.content} for m in req.history]
     result = await ask_starai(req.message, history, lang=req.lang)
     return result
 
 
-# ── Эндпоинт: Конфигурация ─────────────────────────────────────────
+# ── Endpoint: Configuration ─────────────────────────────────────────
 @app.get("/api/config")
 async def get_config():
-    """Начальная конфигурация для фронтенда."""
+    """Initial configuration for frontend."""
     return {
         "earth_texture_url": "https://eoimages.gsfc.nasa.gov/images/imagerecords/74000/74393/world.200412.3x5400x2700.jpg",
         "earth_radius_km": 6371.0,
-        "scale_factor": 1 / 6371.0,     # нормализация: 1 unit = 1 earth radius
+        "scale_factor": 1 / 6371.0,     # normalization: 1 unit = 1 earth radius
         "constellations": ["УниверСат", "МГТУ Баумана", "SPUTNIX", "Геоскан", "НИИЯФ МГУ", "Space-Pi"],
         "default_time_speed": 1.0,
         "update_interval_ms": 1000,
     }
 
 
-# ── Запуск ──────────────────────────────────────────────────────────
+# ── Entry point ─────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
