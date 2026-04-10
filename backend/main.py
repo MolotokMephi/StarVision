@@ -4,9 +4,11 @@ Digital twin of a Russian CubeSat constellation.
 """
 
 import math
+import os
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,7 +21,14 @@ from orbital import (
 from ai_assistant import ask_starai
 from celestrak import get_tle_by_source, invalidate_cache, fetch_celestrak_tle
 
+load_dotenv()
+
 # ── Application ─────────────────────────────────────────────────────
+ALLOWED_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,http://78.17.40.155",
+).split(",")
+
 app = FastAPI(
     title="StarVision API",
     description="Digital twin API for Russian CubeSat constellation",
@@ -28,7 +37,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # In production — specific frontend domain
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -177,7 +186,7 @@ async def get_elements(
 # ── Endpoint: Inter-satellite links ────────────────────────────────
 @app.get("/api/links")
 async def get_links(
-    comm_range_km: float = Query(default=3000.0, ge=50.0, le=10000.0),
+    comm_range_km: float = Query(default=2000.0, ge=50.0, le=2000.0),
     timestamp: Optional[str] = None,
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
