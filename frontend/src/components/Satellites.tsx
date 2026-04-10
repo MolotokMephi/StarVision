@@ -13,31 +13,12 @@ import { Html } from '@react-three/drei';
 import { Vector3, Group } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime, advanceSimTime } from '../simClock';
+import { CONSTELLATION_COLORS, CONSTELLATION_NAMES, CONSTELLATION_MODEL_TYPE } from '../constants';
 import type { SatellitePosition, OrbitPoint, TLEData } from '../types';
 
 const EARTH_RADIUS = 6371.0;
 const MU = 398600.4418;
 const SCALE = 1 / EARTH_RADIUS;
-
-// Constellation colors
-const CONSTELLATION_COLORS: Record<string, string> = {
-  'УниверСат': '#3389ff',
-  'МГТУ Баумана': '#33ffaa',
-  'SPUTNIX': '#ff9933',
-  'Геоскан': '#ff3366',
-  'НИИЯФ МГУ': '#aa33ff',
-  'Space-Pi': '#ffdd33',
-};
-
-// Model type per constellation (0 = 1U/1.5U, 1 = 3U/6U)
-const CONSTELLATION_MODEL_TYPE: Record<string, number> = {
-  'УниверСат': 1,
-  'МГТУ Баумана': 0,
-  'SPUTNIX': 1,
-  'Геоскан': 1,
-  'НИИЯФ МГУ': 1,
-  'Space-Pi': 0,
-};
 
 function getColor(constellation: string): string {
   return CONSTELLATION_COLORS[constellation] || '#8ec9ff';
@@ -424,21 +405,15 @@ export function Satellites({
   timeSpeed,
 }: SatellitesProps) {
   // ── Client-side SGP4: initialize satrec objects ───────────────────
-  const satrecsRef = useRef<Array<{
-    norad_id: number;
-    name: string;
-    constellation: string;
-    satrec: ReturnType<typeof twoline2satrec>;
-  }>>([]);
+  const satrecsRef = useRef<Map<number, ReturnType<typeof twoline2satrec>>>(new Map());
 
   useEffect(() => {
     if (tleData.length > 0) {
-      satrecsRef.current = tleData.map((tle) => ({
-        norad_id: tle.norad_id,
-        name: tle.name,
-        constellation: tle.constellation,
-        satrec: twoline2satrec(tle.tle_line1, tle.tle_line2),
-      }));
+      const map = new Map<number, ReturnType<typeof twoline2satrec>>();
+      tleData.forEach((tle) => {
+        map.set(tle.norad_id, twoline2satrec(tle.tle_line1, tle.tle_line2));
+      });
+      satrecsRef.current = map;
     }
   }, [tleData]);
 
@@ -459,7 +434,7 @@ export function Satellites({
     const allVirt = Array.from({ length: satelliteCount }, (_, i) => ({
       norad_id: 90000 + i,
       name: `VirtSat-${i + 1}`,
-      constellation: Object.keys(CONSTELLATION_COLORS)[i % Object.keys(CONSTELLATION_COLORS).length],
+      constellation: CONSTELLATION_NAMES[i % CONSTELLATION_NAMES.length],
     }));
     return allVirt.filter((sat) => activeConstellations.includes(sat.constellation));
   }, [orbitAltitudeKm, satelliteCount, activeConstellations]);
@@ -497,9 +472,9 @@ export function Satellites({
           return computeCircularOrbitECI(idx, vsc, alt, simTime / 1000, planes);
         }
         // Real TLE mode via satellite.js
-        const rec = satrecsRef.current.find((r) => r.norad_id === noradId);
-        if (!rec) return null;
-        const pv = propagate(rec.satrec, new Date(simTime));
+        const satrec = satrecsRef.current.get(noradId);
+        if (!satrec) return null;
+        const pv = propagate(satrec, new Date(simTime));
         if (!pv.position || typeof pv.position === 'boolean') return null;
         return pv.position as { x: number; y: number; z: number };
       };

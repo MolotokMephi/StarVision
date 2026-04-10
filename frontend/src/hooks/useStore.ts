@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import type { AppState, SatelliteData, SatellitePosition, OrbitPoint, ChatMessage, TLEData } from '../types';
-
-const ALL_CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
+import type { AppState } from '../types';
+import { CONSTELLATION_NAMES } from '../constants';
 
 let _highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -25,7 +24,7 @@ export const useStore = create<AppState>((set, get) => ({
   focusedSatellite: null,
   cameraFollowing: false,
   highlightedConstellation: null,
-  activeConstellations: [...ALL_CONSTELLATIONS],
+  activeConstellations: [...CONSTELLATION_NAMES],
   satelliteCount: 15,
   orbitAltitudeKm: 0,
   tleSource: 'embedded',
@@ -104,7 +103,7 @@ export const useStore = create<AppState>((set, get) => ({
       showLabels: true,
       showCoverage: false,
       showLinks: true,
-      activeConstellations: [...ALL_CONSTELLATIONS],
+      activeConstellations: [...CONSTELLATION_NAMES],
       satelliteCount: 15,
       tleSource: 'embedded',
       orbitAltitudeKm: 0,

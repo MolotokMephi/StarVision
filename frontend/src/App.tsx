@@ -7,6 +7,7 @@ import { Header } from './components/Header';
 import { useStore } from './hooks/useStore';
 import { fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE } from './services/api';
 import { getSimTime } from './simClock';
+import { CONSTELLATION_NAMES } from './constants';
 
 export default function App() {
   const {
@@ -104,10 +105,9 @@ export default function App() {
   const displayedCount = useMemo(() => {
     if (orbitAltitudeKm > 0) {
       // Virtual mode: all satelliteCount are "active", filtered by constellations
-      const CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
       let count = 0;
       for (let i = 0; i < satelliteCount; i++) {
-        if (activeConstellations.includes(CONSTELLATIONS[i % CONSTELLATIONS.length])) count++;
+        if (activeConstellations.includes(CONSTELLATION_NAMES[i % CONSTELLATION_NAMES.length])) count++;
       }
       return count;
     }

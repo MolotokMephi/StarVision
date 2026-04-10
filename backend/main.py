@@ -3,7 +3,7 @@ main.py — StarVision Backend (FastAPI)
 Digital twin of a Russian CubeSat constellation.
 """
 
-import os
+import math
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -45,13 +45,6 @@ class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = []
     lang: str = "ru"
-
-
-class SimulationParams(BaseModel):
-    time_speed: float = 1.0
-    show_orbits: bool = True
-    show_coverage: bool = False
-    selected_constellations: List[str] = []
 
 
 # ── Helper: TLE override ──────────────────────────────────────────
@@ -195,8 +188,6 @@ async def get_links(
     ?timestamp=... — calculation time (defaults to current UTC)
     ?source=embedded|celestrak — TLE data source.
     """
-    import math
-
     dt = None
     if timestamp:
         try:

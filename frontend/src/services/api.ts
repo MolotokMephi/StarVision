@@ -81,15 +81,3 @@ export async function sendChatMessage(
   });
 }
 
-// ── Configuration ───────────────────────────────────────────────────
-
-export async function fetchConfig() {
-  return fetchJSON<{
-    earth_texture_url: string;
-    earth_radius_km: number;
-    scale_factor: number;
-    constellations: string[];
-    default_time_speed: number;
-    update_interval_ms: number;
-  }>('/config');
-}

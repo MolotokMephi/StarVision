@@ -8,7 +8,7 @@ import asyncio
 import time
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import httpx
@@ -26,7 +26,6 @@ CELESTRAK_URLS = [
 # TLE data cache: norad_id -> (tle_line1, tle_line2)
 CACHE_TTL_SEC = 3600  # refresh every hour
 _tle_cache: Dict[int, Tuple[str, str]] = {}
-_tle_cache_epochs: Dict[int, float] = {}  # norad_id -> TLE epoch (julian day fraction)
 _cache_timestamp: float = 0.0
 _cache_lock: asyncio.Lock = asyncio.Lock()
 
@@ -66,7 +65,6 @@ def _tle_epoch_age_days(line1: str) -> float:
         day_frac = float(line1[20:32])
         year = 2000 + year_2d if year_2d < 57 else 1900 + year_2d
         epoch = datetime(year, 1, 1, tzinfo=timezone.utc)
-        from datetime import timedelta
         epoch += timedelta(days=day_frac - 1)
         now = datetime.now(timezone.utc)
         return (now - epoch).total_seconds() / 86400.0
@@ -224,15 +222,6 @@ async def _fetch_url(client: httpx.AsyncClient, url: str) -> Dict[int, Tuple[str
         return {}
 
 
-def get_embedded_tle() -> Dict[int, Tuple[str, str]]:
-    """Get built-in TLE data from catalog."""
-    return {
-        s.norad_id: (s.tle_line1, s.tle_line2)
-        for s in RUSSIAN_CUBESATS
-        if s.tle_line1 and s.tle_line2
-    }
-
-
 async def get_tle_by_source(source: str = "embedded") -> List[dict]:
     """
     Get TLE data depending on source.
@@ -290,7 +279,6 @@ def _get_embedded_tle_list() -> List[dict]:
 
 def invalidate_cache():
     """Reset TLE cache (for forced refresh)."""
-    global _tle_cache, _cache_timestamp, _tle_cache_epochs
+    global _tle_cache, _cache_timestamp
     _tle_cache = {}
-    _tle_cache_epochs = {}
     _cache_timestamp = 0.0
