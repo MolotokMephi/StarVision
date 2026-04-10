@@ -1,7 +1,7 @@
 import { Suspense, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera } from '@react-three/drei';
-import { Vector3, Group } from 'three';
+import { Vector3 } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
 import { Earth, EARTH_ROTATION_SPEED } from './Earth';
@@ -252,8 +252,6 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
     satelliteCount,
     orbitAltitudeKm,
     orbitalPlanes,
-    commRangeKm,
-    showLinks,
     selectSatellite,
   } = useStore();
 
@@ -294,7 +292,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
       <Stars radius={100} depth={80} count={1500} factor={3} saturation={0.1} fade speed={0.5} />
 
       {/* Earth with NASA Blue Marble */}
-      <Earth timeSpeed={timeSpeed} />
+      <Earth />
 
       {/* Coordinate grid */}
       <CoordinateGrid />

@@ -19,6 +19,7 @@ import {
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
 import { useStore } from '../hooks/useStore';
+import { CONSTELLATION_COLORS, CONSTELLATION_NAMES } from '../constants';
 import type { TLEData } from '../types';
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -28,15 +29,6 @@ const SURF     = 1.008;           // Scene-unit radius above Earth surface (enou
 const SEG      = 64;              // Polygon resolution (ring segments)
 const MAX_SATS = 15;              // Pool size (max satellites)
 const THROTTLE = 3;               // Update every N frames
-
-const CONSTELLATION_COLORS: Record<string, string> = {
-  'УниверСат':   '#3389ff',
-  'МГТУ Баумана': '#33ffaa',
-  'SPUTNIX':     '#ff9933',
-  'Геоскан':     '#ff3366',
-  'НИИЯФ МГУ':   '#aa33ff',
-  'Space-Pi':    '#ffdd33',
-};
 
 function getColor(constellation: string): string {
   return CONSTELLATION_COLORS[constellation] ?? '#8ec9ff';
@@ -290,8 +282,6 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       (_, i) => filteredTLE[Math.floor(i * step)]
     );
 
-    const constellationNames = Object.keys(CONSTELLATION_COLORS);
-
     for (let i = 0; i < MAX_SATS; i++) {
       const p = pool[i];
 
@@ -312,7 +302,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         const eci = virtualECI(i, satelliteCount, orbitAltitudeKm, simTimeSec, orbitalPlanes);
         ex = eci.x; ey = eci.y; ez = eci.z;
         // Derive constellation by cycling through names (consistent with Satellites.tsx and ISL)
-        const constellation = constellationNames[i % constellationNames.length];
+        const constellation = CONSTELLATION_NAMES[i % CONSTELLATION_NAMES.length];
         if (!activeConstellations.includes(constellation)) {
           p.fillMesh.visible = false; p.ringLine.visible = false; continue;
         }

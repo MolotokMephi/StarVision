@@ -5,10 +5,11 @@ and generates UI control commands.
 
 import json
 import os
+import re
+import logging
 from typing import Dict, Any, List, Optional
 
 import httpx
-import logging
 
 from satellites import RUSSIAN_CUBESATS
 
@@ -129,7 +130,6 @@ async def ask_starai(
             }
         except json.JSONDecodeError:
             # Try to extract JSON from markdown code block
-            import re
             json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
             if json_match:
                 try:
@@ -170,8 +170,6 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
     """Offline responses without API key — extended command set."""
     msg_lower = user_message.lower().strip()
     en = lang == "en"
-
-    import re
 
     # ── Greetings ────────────────────────────────────────
     if any(w in msg_lower for w in ["привет", "здравствуй", "хай", "hello", "добрый", "здрасте", "hi ", " hi"]) or msg_lower == "hi":

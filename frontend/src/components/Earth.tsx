@@ -14,10 +14,6 @@ export const EARTH_ROTATION_SPEED = (2 * Math.PI) / 86164;
 const EARTH_TEXTURE_URL =
   '/textures/earth.jpg';
 
-interface EarthProps {
-  timeSpeed: number;
-}
-
 // ── ErrorBoundary for texture loading errors ─────────────────────
 interface EBProps { fallback: ReactNode; children: ReactNode; }
 interface EBState { hasError: boolean; }
@@ -33,7 +29,7 @@ class TextureErrorBoundary extends Component<EBProps, EBState> {
 }
 
 // ── Earth with texture ─────────────────────────────────────────────
-function EarthWithTexture({ timeSpeed: _timeSpeed }: EarthProps) {
+function EarthWithTexture() {
   const meshRef = useRef<Mesh>(null);
   const atmosphereRef = useRef<Mesh>(null);
   const texture = useLoader(TextureLoader, EARTH_TEXTURE_URL);
@@ -88,7 +84,7 @@ function EarthWithTexture({ timeSpeed: _timeSpeed }: EarthProps) {
 }
 
 // ── Fallback Earth (no texture, colored shader) ─────────────────
-function EarthFallback({ timeSpeed: _timeSpeed }: EarthProps) {
+function EarthFallback() {
   const meshRef = useRef<Mesh>(null);
   const atmosphereRef = useRef<Mesh>(null);
 
@@ -137,12 +133,12 @@ function EarthFallback({ timeSpeed: _timeSpeed }: EarthProps) {
 }
 
 // ── Public component with Suspense fallback and ErrorBoundary ────
-export function Earth({ timeSpeed }: EarthProps) {
-  const fallback = <EarthFallback timeSpeed={timeSpeed} />;
+export function Earth() {
+  const fallback = <EarthFallback />;
   return (
     <TextureErrorBoundary fallback={fallback}>
       <Suspense fallback={fallback}>
-        <EarthWithTexture timeSpeed={timeSpeed} />
+        <EarthWithTexture />
       </Suspense>
     </TextureErrorBoundary>
   );

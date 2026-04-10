@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
 import { getSimTime } from '../simClock';
+import { CONSTELLATION_NAMES } from '../constants';
 import type { SatelliteData, SatellitePosition } from '../types';
 
 const EARTH_RADIUS = 6371.0;
@@ -21,12 +22,11 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
     () => {
       if (!selectedSatellite) return undefined;
       if (isVirtual) {
-        const CONSTELLATIONS = ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
         const idx = selectedSatellite - 90000;
         return {
           norad_id: selectedSatellite,
           name: `VirtSat-${idx + 1}`,
-          constellation: CONSTELLATIONS[idx % CONSTELLATIONS.length],
+          constellation: CONSTELLATION_NAMES[idx % CONSTELLATION_NAMES.length],
           purpose: lang === 'en' ? 'Virtual satellite' : 'Виртуальный спутник',
           mass_kg: 0,
           form_factor: 'Virtual',

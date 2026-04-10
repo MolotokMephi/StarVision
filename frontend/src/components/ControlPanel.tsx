@@ -2,15 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
 import { fetchTLE, refreshTLE } from '../services/api';
-
-const CONSTELLATION_COLORS: Record<string, string> = {
-  'УниверСат': '#3389ff',
-  'МГТУ Баумана': '#33ffaa',
-  'SPUTNIX': '#ff9933',
-  'Геоскан': '#ff3366',
-  'НИИЯФ МГУ': '#aa33ff',
-  'Space-Pi': '#ffdd33',
-};
+import { CONSTELLATION_COLORS } from '../constants';
 
 const SPEED_PRESETS = [
   { label: '1×', value: 1 },

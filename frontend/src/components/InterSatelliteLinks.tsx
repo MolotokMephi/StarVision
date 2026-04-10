@@ -18,6 +18,7 @@ import {
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
 import { useStore } from '../hooks/useStore';
+import { CONSTELLATION_NAMES } from '../constants';
 import type { TLEData } from '../types';
 
 const EARTH_RADIUS = 6371.0;
@@ -113,6 +114,7 @@ interface InterSatelliteLinksProps {
 
 export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterSatelliteLinksProps) {
   const {
+    lang,
     showLinks,
     commRangeKm,
     satelliteCount,
@@ -227,14 +229,11 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     let eciPositions: Array<{ norad_id: number; x: number; y: number; z: number }>;
 
     if (orbitAltitudeKm > 0) {
-      const constellationKeys = Object.keys(satelliteConstellations).length > 0
-        ? Object.values(satelliteConstellations).filter((v, i, a) => a.indexOf(v) === i)
-        : ['УниверСат', 'МГТУ Баумана', 'SPUTNIX', 'Геоскан', 'НИИЯФ МГУ', 'Space-Pi'];
       const virt = computeVirtualPositions(satelliteCount, orbitAltitudeKm, simTime, orbitalPlanes);
       eciPositions = virt
         .map((p, i) => ({
           norad_id: 90000 + i,
-          constellation: constellationKeys[i % constellationKeys.length],
+          constellation: CONSTELLATION_NAMES[i % CONSTELLATION_NAMES.length],
           ...p,
         }))
         .filter((p) => activeConstellations.includes(p.constellation));
@@ -414,7 +413,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
             }}
           >
             <span style={{ color: tooltip.connected ? '#00ff88' : '#ff3344', marginRight: '4px' }}>●</span>
-            {tooltip.distance.toFixed(1)} {useStore.getState().lang === 'ru' ? 'км' : 'km'}
+            {tooltip.distance.toFixed(1)} {lang === 'ru' ? 'км' : 'km'}
           </div>
         </Html>
       )}
