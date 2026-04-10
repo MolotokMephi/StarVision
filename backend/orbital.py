@@ -191,7 +191,7 @@ def predict_collisions(
     # Find minimum distance for each pair over the period
     pair_min: Dict[tuple, Dict[str, Any]] = {}
 
-    for step_i in range(0, steps, max(1, steps // 200)):  # Limit steps for optimization
+    for step_i in range(0, steps, max(1, steps // 1440)):  # ~1440 samples for fine-grained detection
         offset = step_i * step_sec
         dt = dt_start + timedelta(seconds=offset)
         jd, fr = jday(dt.year, dt.month, dt.day,

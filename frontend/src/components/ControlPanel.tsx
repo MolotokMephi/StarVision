@@ -225,15 +225,15 @@ export function ControlPanel() {
         <input
           type="range"
           min={50}
-          max={10000}
+          max={2000}
           step={50}
           value={commRangeKm}
           onChange={(e) => setCommRangeKm(Number(e.target.value))}
         />
         <div className="flex justify-between text-[10px] text-star-700 font-mono mt-0.5">
           <span>50</span>
-          <span>5000</span>
-          <span>10000 {lang === 'ru' ? 'км' : 'km'}</span>
+          <span>1000</span>
+          <span>2000 {lang === 'ru' ? 'км' : 'km'}</span>
         </div>
       </div>
 

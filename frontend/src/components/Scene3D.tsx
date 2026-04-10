@@ -1,7 +1,7 @@
 import { Suspense, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { Group, Vector3 } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
 import { Earth, EARTH_ROTATION_SPEED } from './Earth';

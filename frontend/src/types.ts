@@ -65,7 +65,7 @@ export interface AppState {
   satelliteCount: number;
   tleSource: 'embedded' | 'celestrak';  // TLE data source
   orbitAltitudeKm: number;   // 0 = real TLE; >0 = virtual circular orbits
-  commRangeKm: number;       // communication range threshold (50–2000 km)
+  commRangeKm: number;       // communication range threshold (50–2000 km per spec)
   activeLinksCount: number;  // current number of active ISL
   orbitalPlanes: number;     // number of orbital planes (1–7)
 

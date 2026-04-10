@@ -28,7 +28,7 @@ export const useStore = create<AppState>((set, get) => ({
   satelliteCount: 15,
   orbitAltitudeKm: 0,
   tleSource: 'embedded',
-  commRangeKm: 3000,
+  commRangeKm: 2000,
   activeLinksCount: 0,
   orbitalPlanes: 3,
 
@@ -107,7 +107,7 @@ export const useStore = create<AppState>((set, get) => ({
       satelliteCount: 15,
       tleSource: 'embedded',
       orbitAltitudeKm: 0,
-      commRangeKm: 3000,
+      commRangeKm: 2000,
       orbitalPlanes: 3,
     }),
 }));
