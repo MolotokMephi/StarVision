@@ -278,12 +278,16 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
     const simTimeSec = simTime / 1000;
     const useVirtual = orbitAltitudeKm > 0;
 
-    // Uniformly select satelliteCount entries from the catalog
-    // (mirrors selectUniformly in Satellites.tsx)
-    const step = curTleData.length > 0 ? curTleData.length / satelliteCount : 1;
+    // Filter by active constellations first, then select uniformly
+    // (mirrors the logic in Satellites.tsx to keep zones aligned with satellite markers)
+    const filteredTLE = curTleData.filter((tle) => {
+      const constellation = curConstellations[tle.norad_id];
+      return !constellation || activeConstellations.includes(constellation);
+    });
+    const step = filteredTLE.length > 0 ? filteredTLE.length / satelliteCount : 1;
     const selectedTLE = Array.from(
-      { length: Math.min(satelliteCount, curTleData.length) },
-      (_, i) => curTleData[Math.floor(i * step)]
+      { length: Math.min(satelliteCount, filteredTLE.length) },
+      (_, i) => filteredTLE[Math.floor(i * step)]
     );
 
     const constellationNames = Object.keys(CONSTELLATION_COLORS);
@@ -314,14 +318,11 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         }
         color = getColor(constellation);
       } else {
-        // SGP4 propagation from TLE
+        // SGP4 propagation from TLE (already filtered by constellation above)
         const tle = selectedTLE[i];
         if (!tle) { p.fillMesh.visible = false; p.ringLine.visible = false; continue; }
 
         const constellation = curConstellations[tle.norad_id];
-        if (constellation && !activeConstellations.includes(constellation)) {
-          p.fillMesh.visible = false; p.ringLine.visible = false; continue;
-        }
 
         const satrec = satrecsRef.current[tle.norad_id];
         if (!satrec) { p.fillMesh.visible = false; p.ringLine.visible = false; continue; }
