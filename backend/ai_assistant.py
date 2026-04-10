@@ -174,7 +174,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
     import re
 
     # ── Greetings ────────────────────────────────────────
-    if any(w in msg_lower for w in ["привет", "здравствуй", "хай", "hello", "добрый", "здрасте", "hi "]):
+    if any(w in msg_lower for w in ["привет", "здравствуй", "хай", "hello", "добрый", "здрасте", "hi ", " hi"]) or msg_lower == "hi":
         return {
             "message": (
                 "Hello! ✦ I am StarAI — the intelligent assistant of StarVision. "
@@ -750,6 +750,21 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
 
     # ── Plane optimization ────────────────────────────────
     if any(w in msg_lower for w in ["оптимиз", "walker", "распредел", "плоскост", "optimiz", "plane", "distribut"]):
+        nums = re.findall(r'\d+', msg_lower)
+        if nums:
+            planes = min(7, max(1, int(nums[0])))
+            return {
+                "message": (
+                    f"Setting {planes} orbital plane{'s' if planes != 1 else ''}. "
+                    "Satellites will be distributed evenly across these planes "
+                    "using the Walker-δ pattern."
+                    if en else
+                    f"Устанавливаю {planes} орбитальн{'ых плоскостей' if planes > 4 else 'ые плоскости' if planes > 1 else 'ую плоскость'}. "
+                    "Спутники будут равномерно распределены по плоскостям "
+                    "по схеме Walker-δ."
+                ),
+                "actions": [{"type": "set_orbital_planes", "planes": planes}],
+            }
         return {
             "message": (
                 "Orbital plane distribution optimization uses "
@@ -762,7 +777,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 "✦ Minimum communication gaps\n"
                 "✦ Uniform ISL channel load\n\n"
                 "Use the 'Orbital planes' slider in the control panel "
-                "or API: /api/optimize-planes."
+                "or tell me, e.g.: 'Set 5 planes'."
                 if en else
                 "Оптимизация распределения по орбитальным плоскостям использует "
                 "модель Walker-δ constellation (T/P/F):\n\n"
@@ -774,7 +789,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
                 "✦ Минимальные перерывы в связи\n"
                 "✦ Равномерную нагрузку на каналы ISL\n\n"
                 "Используйте ползунок «Орбитальные плоскости» в панели управления "
-                "или API: /api/optimize-planes."
+                "или скажите мне, например: «Установи 5 плоскостей»."
             ),
             "actions": [],
         }

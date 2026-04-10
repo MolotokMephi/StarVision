@@ -115,10 +115,10 @@ export function StarAIChat() {
     addChatMessage(userMsg);
     setChatLoading(true);
 
-    // Build history including the just-added user message to avoid stale-closure issue:
-    // chatMessages state won't reflect the new message until the next render, so we
-    // construct the up-to-date history explicitly.
-    const historyForApi = [...chatMessages, userMsg];
+    // Send previous messages as history (without the new user message).
+    // The backend appends user_message to the history itself, so we must
+    // NOT include it here to avoid duplicating the message.
+    const historyForApi = [...chatMessages];
 
     try {
       const response = await sendChatMessage(msg, historyForApi, lang);
