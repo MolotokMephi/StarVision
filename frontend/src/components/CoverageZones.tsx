@@ -202,8 +202,9 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         depthTest:    false,
       });
       const fillMesh = new Mesh(fillGeo, fillMat);
-      fillMesh.visible     = false;
-      fillMesh.renderOrder = 1;
+      fillMesh.visible       = false;
+      fillMesh.renderOrder   = 1;
+      fillMesh.frustumCulled = false;
 
       // Ring outline: SEG+1 vertices × 3 floats (closed line loop)
       const ringBuf  = new Float32Array((SEG + 1) * 3);
@@ -218,8 +219,9 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         depthTest:   false,
       });
       const ringLine = new Line(ringGeo, ringMat);
-      ringLine.visible     = false;
-      ringLine.renderOrder = 2;
+      ringLine.visible       = false;
+      ringLine.renderOrder   = 2;
+      ringLine.frustumCulled = false;
 
       group.add(fillMesh, ringLine);
       pool.push({ fillGeo, fillBuf, fillAttr, fillMesh, fillMat, ringGeo, ringBuf, ringAttr, ringLine, ringMat });
