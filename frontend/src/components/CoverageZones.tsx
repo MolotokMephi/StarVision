@@ -165,6 +165,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
   const groupRef   = useRef<Group>(null);
   const frameRef   = useRef(0);
   const poolRef    = useRef<PoolEntry[] | null>(null);
+  const poolInitRef = useRef(false);
   const satrecsRef = useRef<Record<number, ReturnType<typeof twoline2satrec>>>({});
   const tleDataRef = useRef(tleData);
   tleDataRef.current = tleData;
@@ -180,10 +181,11 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
     satrecsRef.current = map;
   }, [tleData]);
 
-  // Allocate pool of Three.js objects once on mount
+  // Allocate pool once on mount (poolInitRef guard prevents double-creation
+  // in React StrictMode — same pattern as InterSatelliteLinks)
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || poolRef.current) return;
+    if (!group || poolInitRef.current) return;
 
     const pool: PoolEntry[] = [];
     for (let i = 0; i < MAX_SATS; i++) {
@@ -196,7 +198,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       const fillMat  = new MeshBasicMaterial({
         color:        '#3389ff',
         transparent:  true,
-        opacity:      0.08,
+        opacity:      0.18,
         side:         DoubleSide,
         depthWrite:   false,
         depthTest:    false,
@@ -215,7 +217,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       const ringMat  = new LineBasicMaterial({
         color:       '#3389ff',
         transparent: true,
-        opacity:     0.55,
+        opacity:     0.75,
         depthTest:   false,
       });
       const ringLine = new Line(ringGeo, ringMat);
@@ -227,16 +229,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       pool.push({ fillGeo, fillBuf, fillAttr, fillMesh, fillMat, ringGeo, ringBuf, ringAttr, ringLine, ringMat });
     }
     poolRef.current = pool;
-
-    return () => {
-      pool.forEach((p) => {
-        p.fillGeo.dispose();
-        p.fillMat.dispose();
-        p.ringGeo.dispose();
-        p.ringMat.dispose();
-      });
-      poolRef.current = null;
-    };
+    poolInitRef.current = true;
   }, []);
 
   useFrame(() => {
@@ -337,12 +330,14 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       if (!fillOk) { p.fillMesh.visible = false; p.ringLine.visible = false; continue; }
       p.fillAttr.needsUpdate = true;
       p.fillGeo.setDrawRange(0, SEG * 3);
+      p.fillGeo.computeBoundingSphere();
       p.fillMesh.visible = true;
 
       // Update ring outline geometry
       const ringOk = writeRing(p.ringBuf, ex, ey, ez);
       p.ringAttr.needsUpdate = true;
       p.ringGeo.setDrawRange(0, SEG + 1);
+      p.ringGeo.computeBoundingSphere();
       p.ringLine.visible = ringOk;
     }
   });
