@@ -6,15 +6,17 @@
  * the set of points visible from the satellite at 0° elevation.
  * Angular radius from Earth center: θ = arccos(R_E / r)
  *
- * Rendering: per-satellite filled disk (triangle fan) + ring outline.
- * Uses the same object-pool + imperative update pattern as ISL links.
+ * Rendering: per-satellite cone (satellite→ring), filled disk on surface,
+ * and ring outline. Uses the same object-pool + imperative update pattern
+ * as ISL links.
  */
 
 import { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   BufferGeometry, Float32BufferAttribute,
-  Group, Mesh, MeshBasicMaterial, Line, LineBasicMaterial, DoubleSide,
+  Group, Mesh, MeshBasicMaterial, Line, LineSegments,
+  LineBasicMaterial, DoubleSide,
 } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
@@ -23,12 +25,14 @@ import { CONSTELLATION_COLORS, CONSTELLATION_NAMES } from '../constants';
 import type { TLEData } from '../types';
 
 // ── Constants ─────────────────────────────────────────────────────────
-const R_E      = 6371.0;          // Earth radius (km)
-const MU       = 398600.4418;     // GM (km³/s²)
-const SURF     = 1.008;           // Scene-unit radius above Earth surface (enough to avoid z-fighting)
-const SEG      = 64;              // Polygon resolution (ring segments)
-const MAX_SATS = 15;              // Pool size (max satellites)
-const THROTTLE = 3;               // Update every N frames
+const R_E       = 6371.0;          // Earth radius (km)
+const MU        = 398600.4418;     // GM (km³/s²)
+const SCALE     = 1 / R_E;         // km → scene units
+const SURF      = 1.008;           // Scene-unit radius above Earth surface (avoid z-fighting)
+const SEG       = 64;              // Polygon resolution (ring segments)
+const CONE_SEGS = 16;              // Number of cone wireframe lines
+const MAX_SATS  = 15;              // Pool size (max satellites)
+const THROTTLE  = 3;               // Update every N frames
 
 function getColor(constellation: string): string {
   return CONSTELLATION_COLORS[constellation] ?? '#8ec9ff';
@@ -77,66 +81,103 @@ function perpBasis(ux: number, uy: number, uz: number) {
   };
 }
 
-// ── Write triangle-fan fill (SEG × 3 verts × 3 floats) ───────────────
-// Returns false when satellite is too close to Earth to draw.
-function writeFill(buf: Float32Array, ex: number, ey: number, ez: number): boolean {
+// ── Shared horizon parameters ─────────────────────────────────────────
+function horizonParams(ex: number, ey: number, ez: number) {
   const r = Math.sqrt(ex * ex + ey * ey + ez * ez);
-  if (r < R_E + 50) return false;
+  if (r < R_E + 50) return null;
 
   const ct = R_E / r;                           // cos(θ)
   const st = Math.sqrt(Math.max(0, 1 - ct * ct)); // sin(θ)
   const ux = ex / r, uy = ey / r, uz = ez / r;
-  const { vx, vy, vz, wx, wy, wz } = perpBasis(ux, uy, uz);
+  const basis = perpBasis(ux, uy, uz);
 
-  // Sub-satellite point in scene coords (ECI→Three.js Y-up)
+  return { r, ct, st, ux, uy, uz, ...basis };
+}
+
+// ── Ring point on Earth surface in scene coords ───────────────────────
+function ringPoint(
+  phi: number,
+  ct: number, st: number,
+  ux: number, uy: number, uz: number,
+  vx: number, vy: number, vz: number,
+  wx: number, wy: number, wz: number,
+): [number, number, number] {
+  const cp = Math.cos(phi), sp = Math.sin(phi);
+  const rx = ct * ux + st * (cp * vx + sp * wx);
+  const ry = ct * uy + st * (cp * vy + sp * wy);
+  const rz = ct * uz + st * (cp * vz + sp * wz);
+  return [rx * SURF, rz * SURF, -ry * SURF]; // ECI → scene Y-up
+}
+
+// ── Write triangle-fan fill on Earth surface (SEG × 3 verts × 3 floats)
+function writeFill(buf: Float32Array, ex: number, ey: number, ez: number): boolean {
+  const h = horizonParams(ex, ey, ez);
+  if (!h) return false;
+
+  const { ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz } = h;
+
+  // Sub-satellite point in scene coords
   const cx =  ux * SURF;
-  const cy =  uz * SURF;   // ECI z → scene Y
-  const cz = -uy * SURF;   // ECI -y → scene Z
+  const cy =  uz * SURF;
+  const cz = -uy * SURF;
 
   let idx = 0;
   for (let i = 0; i < SEG; i++) {
     const phi0 = (i       / SEG) * 2 * Math.PI;
     const phi1 = ((i + 1) / SEG) * 2 * Math.PI;
-    const c0 = Math.cos(phi0), s0 = Math.sin(phi0);
-    const c1 = Math.cos(phi1), s1 = Math.sin(phi1);
 
-    // ECI unit vectors of ring points
-    const r0x = ct * ux + st * (c0 * vx + s0 * wx);
-    const r0y = ct * uy + st * (c0 * vy + s0 * wy);
-    const r0z = ct * uz + st * (c0 * vz + s0 * wz);
-    const r1x = ct * ux + st * (c1 * vx + s1 * wx);
-    const r1y = ct * uy + st * (c1 * vy + s1 * wy);
-    const r1z = ct * uz + st * (c1 * vz + s1 * wz);
+    const [r0x, r0y, r0z] = ringPoint(phi0, ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+    const [r1x, r1y, r1z] = ringPoint(phi1, ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz);
 
-    // Center vertex
+    // Center
     buf[idx++] = cx;  buf[idx++] = cy;  buf[idx++] = cz;
-    // Ring vertex 0 (ECI→scene)
-    buf[idx++] =  r0x * SURF; buf[idx++] =  r0z * SURF; buf[idx++] = -r0y * SURF;
+    // Ring vertex 0
+    buf[idx++] = r0x; buf[idx++] = r0y; buf[idx++] = r0z;
     // Ring vertex 1
-    buf[idx++] =  r1x * SURF; buf[idx++] =  r1z * SURF; buf[idx++] = -r1y * SURF;
+    buf[idx++] = r1x; buf[idx++] = r1y; buf[idx++] = r1z;
   }
   return true;
 }
 
 // ── Write ring outline ((SEG+1) verts × 3 floats, closed loop) ───────
 function writeRing(buf: Float32Array, ex: number, ey: number, ez: number): boolean {
-  const r = Math.sqrt(ex * ex + ey * ey + ez * ez);
-  if (r < R_E + 50) return false;
+  const h = horizonParams(ex, ey, ez);
+  if (!h) return false;
 
-  const ct = R_E / r;
-  const st = Math.sqrt(Math.max(0, 1 - ct * ct));
-  const ux = ex / r, uy = ey / r, uz = ez / r;
-  const { vx, vy, vz, wx, wy, wz } = perpBasis(ux, uy, uz);
+  const { ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz } = h;
 
   for (let i = 0; i <= SEG; i++) {
     const phi = (i / SEG) * 2 * Math.PI;
-    const cp = Math.cos(phi), sp = Math.sin(phi);
-    const rx = ct * ux + st * (cp * vx + sp * wx);
-    const ry = ct * uy + st * (cp * vy + sp * wy);
-    const rz = ct * uz + st * (cp * vz + sp * wz);
-    buf[i * 3]     =  rx * SURF;
-    buf[i * 3 + 1] =  rz * SURF;
-    buf[i * 3 + 2] = -ry * SURF;
+    const [rx, ry, rz] = ringPoint(phi, ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+    buf[i * 3]     = rx;
+    buf[i * 3 + 1] = ry;
+    buf[i * 3 + 2] = rz;
+  }
+  return true;
+}
+
+// ── Write cone wireframe lines: satellite → ring points ───────────────
+// Buffer layout: CONE_SEGS line-segment pairs, each = 2 verts × 3 floats
+function writeCone(buf: Float32Array, ex: number, ey: number, ez: number): boolean {
+  const h = horizonParams(ex, ey, ez);
+  if (!h) return false;
+
+  const { ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz } = h;
+
+  // Satellite position in scene coords (ECI → Three.js Y-up)
+  const sx =  ex * SCALE;
+  const sy =  ez * SCALE;
+  const sz = -ey * SCALE;
+
+  let idx = 0;
+  for (let i = 0; i < CONE_SEGS; i++) {
+    const phi = (i / CONE_SEGS) * 2 * Math.PI;
+    const [rx, ry, rz] = ringPoint(phi, ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+
+    // Satellite vertex
+    buf[idx++] = sx; buf[idx++] = sy; buf[idx++] = sz;
+    // Ring vertex on Earth surface
+    buf[idx++] = rx; buf[idx++] = ry; buf[idx++] = rz;
   }
   return true;
 }
@@ -153,6 +194,11 @@ type PoolEntry = {
   ringAttr: Float32BufferAttribute;
   ringLine: Line;
   ringMat:  LineBasicMaterial;
+  coneGeo:  BufferGeometry;
+  coneBuf:  Float32Array;
+  coneAttr: Float32BufferAttribute;
+  coneLine: LineSegments;
+  coneMat:  LineBasicMaterial;
 };
 
 // ── Component ─────────────────────────────────────────────────────────
@@ -162,11 +208,12 @@ export interface CoverageZonesProps {
 }
 
 export function CoverageZones({ tleData, satelliteConstellations }: CoverageZonesProps) {
-  const groupRef   = useRef<Group>(null);
-  const frameRef   = useRef(0);
-  const poolRef    = useRef<PoolEntry[] | null>(null);
-  const satrecsRef = useRef<Record<number, ReturnType<typeof twoline2satrec>>>({});
-  const tleDataRef = useRef(tleData);
+  const groupRef    = useRef<Group>(null);
+  const frameRef    = useRef(0);
+  const poolRef     = useRef<PoolEntry[] | null>(null);
+  const poolInitRef = useRef(false);
+  const satrecsRef  = useRef<Record<number, ReturnType<typeof twoline2satrec>>>({});
+  const tleDataRef  = useRef(tleData);
   tleDataRef.current = tleData;
   const constellationsRef = useRef(satelliteConstellations);
   constellationsRef.current = satelliteConstellations;
@@ -180,14 +227,15 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
     satrecsRef.current = map;
   }, [tleData]);
 
-  // Allocate pool of Three.js objects once on mount
+  // Allocate pool once on mount (poolInitRef guard prevents double-creation
+  // in React StrictMode — same pattern as InterSatelliteLinks)
   useEffect(() => {
     const group = groupRef.current;
-    if (!group || poolRef.current) return;
+    if (!group || poolInitRef.current) return;
 
     const pool: PoolEntry[] = [];
     for (let i = 0; i < MAX_SATS; i++) {
-      // Filled disk: SEG triangle-fan triangles × 3 verts × 3 floats
+      // ── Filled disk on Earth surface ──────────────────────────
       const fillBuf  = new Float32Array(SEG * 9);
       const fillAttr = new Float32BufferAttribute(fillBuf, 3);
       fillAttr.setUsage(35048); // DYNAMIC_DRAW
@@ -196,7 +244,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       const fillMat  = new MeshBasicMaterial({
         color:        '#3389ff',
         transparent:  true,
-        opacity:      0.08,
+        opacity:      0.18,
         side:         DoubleSide,
         depthWrite:   false,
         depthTest:    false,
@@ -206,7 +254,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       fillMesh.renderOrder   = 1;
       fillMesh.frustumCulled = false;
 
-      // Ring outline: SEG+1 vertices × 3 floats (closed line loop)
+      // ── Ring outline on Earth surface ─────────────────────────
       const ringBuf  = new Float32Array((SEG + 1) * 3);
       const ringAttr = new Float32BufferAttribute(ringBuf, 3);
       ringAttr.setUsage(35048);
@@ -215,7 +263,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       const ringMat  = new LineBasicMaterial({
         color:       '#3389ff',
         transparent: true,
-        opacity:     0.55,
+        opacity:     0.75,
         depthTest:   false,
       });
       const ringLine = new Line(ringGeo, ringMat);
@@ -223,20 +271,32 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       ringLine.renderOrder   = 2;
       ringLine.frustumCulled = false;
 
-      group.add(fillMesh, ringLine);
-      pool.push({ fillGeo, fillBuf, fillAttr, fillMesh, fillMat, ringGeo, ringBuf, ringAttr, ringLine, ringMat });
+      // ── Cone wireframe: satellite → ring points ───────────────
+      const coneBuf  = new Float32Array(CONE_SEGS * 2 * 3);
+      const coneAttr = new Float32BufferAttribute(coneBuf, 3);
+      coneAttr.setUsage(35048);
+      const coneGeo  = new BufferGeometry();
+      coneGeo.setAttribute('position', coneAttr);
+      const coneMat  = new LineBasicMaterial({
+        color:       '#3389ff',
+        transparent: true,
+        opacity:     0.25,
+        depthTest:   false,
+      });
+      const coneLine = new LineSegments(coneGeo, coneMat);
+      coneLine.visible       = false;
+      coneLine.renderOrder   = 1;
+      coneLine.frustumCulled = false;
+
+      group.add(fillMesh, ringLine, coneLine);
+      pool.push({
+        fillGeo, fillBuf, fillAttr, fillMesh, fillMat,
+        ringGeo, ringBuf, ringAttr, ringLine, ringMat,
+        coneGeo, coneBuf, coneAttr, coneLine, coneMat,
+      });
     }
     poolRef.current = pool;
-
-    return () => {
-      pool.forEach((p) => {
-        p.fillGeo.dispose();
-        p.fillMat.dispose();
-        p.ringGeo.dispose();
-        p.ringMat.dispose();
-      });
-      poolRef.current = null;
-    };
+    poolInitRef.current = true;
   }, []);
 
   useFrame(() => {
@@ -260,6 +320,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       for (let i = 0; i < MAX_SATS; i++) {
         pool[i].fillMesh.visible = false;
         pool[i].ringLine.visible = false;
+        pool[i].coneLine.visible = false;
       }
       return;
     }
@@ -293,6 +354,7 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       if (i >= limit) {
         p.fillMesh.visible = false;
         p.ringLine.visible = false;
+        p.coneLine.visible = false;
         continue;
       }
 
@@ -306,22 +368,22 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
         // Derive constellation by cycling through names (consistent with Satellites.tsx and ISL)
         const constellation = CONSTELLATION_NAMES[i % CONSTELLATION_NAMES.length];
         if (!activeConstellations.includes(constellation)) {
-          p.fillMesh.visible = false; p.ringLine.visible = false; continue;
+          p.fillMesh.visible = false; p.ringLine.visible = false; p.coneLine.visible = false; continue;
         }
         color = getColor(constellation);
       } else {
         // SGP4 propagation from TLE (already filtered by constellation above)
         const tle = selectedTLE[i];
-        if (!tle) { p.fillMesh.visible = false; p.ringLine.visible = false; continue; }
+        if (!tle) { p.fillMesh.visible = false; p.ringLine.visible = false; p.coneLine.visible = false; continue; }
 
         const constellation = curConstellations[tle.norad_id];
 
         const satrec = satrecsRef.current[tle.norad_id];
-        if (!satrec) { p.fillMesh.visible = false; p.ringLine.visible = false; continue; }
+        if (!satrec) { p.fillMesh.visible = false; p.ringLine.visible = false; p.coneLine.visible = false; continue; }
 
         const pv = propagate(satrec, new Date(simTime));
         if (!pv.position || typeof pv.position === 'boolean') {
-          p.fillMesh.visible = false; p.ringLine.visible = false; continue;
+          p.fillMesh.visible = false; p.ringLine.visible = false; p.coneLine.visible = false; continue;
         }
         const pos = pv.position as { x: number; y: number; z: number };
         ex = pos.x; ey = pos.y; ez = pos.z;
@@ -331,19 +393,31 @@ export function CoverageZones({ tleData, satelliteConstellations }: CoverageZone
       // Update material colors
       p.fillMat.color.setStyle(color);
       p.ringMat.color.setStyle(color);
+      p.coneMat.color.setStyle(color);
 
-      // Update filled disk geometry
+      // Update filled disk geometry (ground footprint)
       const fillOk = writeFill(p.fillBuf, ex, ey, ez);
-      if (!fillOk) { p.fillMesh.visible = false; p.ringLine.visible = false; continue; }
+      if (!fillOk) {
+        p.fillMesh.visible = false; p.ringLine.visible = false; p.coneLine.visible = false; continue;
+      }
       p.fillAttr.needsUpdate = true;
       p.fillGeo.setDrawRange(0, SEG * 3);
+      p.fillGeo.computeBoundingSphere();
       p.fillMesh.visible = true;
 
       // Update ring outline geometry
       const ringOk = writeRing(p.ringBuf, ex, ey, ez);
       p.ringAttr.needsUpdate = true;
       p.ringGeo.setDrawRange(0, SEG + 1);
+      p.ringGeo.computeBoundingSphere();
       p.ringLine.visible = ringOk;
+
+      // Update cone wireframe (satellite → ring)
+      const coneOk = writeCone(p.coneBuf, ex, ey, ez);
+      p.coneAttr.needsUpdate = true;
+      p.coneGeo.setDrawRange(0, CONE_SEGS * 2);
+      p.coneGeo.computeBoundingSphere();
+      p.coneLine.visible = coneOk;
     }
   });
 
