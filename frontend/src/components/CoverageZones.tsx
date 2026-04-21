@@ -36,7 +36,17 @@ const R_E       = 6371.0;          // Earth radius (km)
 const MU        = 398600.4418;     // GM (km³/s²)
 const SCALE     = 1 / R_E;         // km → scene units
 const SURF      = 1.008;           // Scene-unit radius above Earth surface (avoid z-fighting)
-const SEG       = 64;              // Polygon resolution (ring segments)
+const SEG       = 48;              // Polygon resolution (ring segments)
+// Radial subdivision — required so that the flat triangles making up the
+// disc stay above the Earth sphere. The chord midpoint between two
+// vertices on a sphere of radius SURF separated by angle δ sits at
+// SURF·cos(δ/2) from the origin. To stay above Earth (radius 1) for the
+// worst-case horizon angle (θ ≈ 40.5° at altitude 2000 km), every radial
+// step must be small enough that SURF·cos(step/2) > 1. N_RADIAL = 6
+// gives step ≤ 6.75°, a comfortable safety margin.
+const N_RADIAL  = 6;
+// Triangles per disc: inner fan (SEG) + outer rings (SEG × 2 × (N_RADIAL-1))
+const FILL_TRIS = SEG * (2 * N_RADIAL - 1);
 const CONE_SEGS = 16;              // Number of cone wireframe lines
 const MAX_SATS  = 15;              // Pool size (max satellites)
 const THROTTLE  = 3;               // Update every N frames
@@ -100,7 +110,24 @@ function horizonParams(ex: number, ey: number, ez: number) {
   return { r, ct, st, ux, uy, uz, ...basis };
 }
 
-// ── Ring point on Earth surface in scene coords ───────────────────────
+// ── Point on Earth surface at angular offset θ_off (0..θ_horizon), phi ─
+// Uses arbitrary θ_off so we can build concentric sub-rings between the
+// nadir (θ_off=0) and the horizon (θ_off=θ, i.e. cos=ct, sin=st).
+function spherePoint(
+  thetaOff: number, phi: number,
+  ux: number, uy: number, uz: number,
+  vx: number, vy: number, vz: number,
+  wx: number, wy: number, wz: number,
+): [number, number, number] {
+  const c = Math.cos(thetaOff), s = Math.sin(thetaOff);
+  const cp = Math.cos(phi), sp = Math.sin(phi);
+  const rx = c * ux + s * (cp * vx + sp * wx);
+  const ry = c * uy + s * (cp * vy + sp * wy);
+  const rz = c * uz + s * (cp * vz + sp * wz);
+  return [rx * SURF, rz * SURF, -ry * SURF]; // ECI → scene Y-up
+}
+
+// ── Ring point on Earth surface at horizon (θ = arccos(ct)) ───────────
 function ringPoint(
   phi: number,
   ct: number, st: number,
@@ -115,29 +142,80 @@ function ringPoint(
   return [rx * SURF, rz * SURF, -ry * SURF]; // ECI → scene Y-up
 }
 
-// ── Write triangle-fan fill on Earth surface ──────────────────────────
+// ── Write subdivided disc fill on Earth surface ───────────────────────
+// Builds N_RADIAL concentric sub-rings between nadir and horizon. The
+// innermost ring is a triangle fan from the nadir; subsequent rings are
+// quad strips (two triangles per segment). Subdivision keeps every
+// chord short enough that the flat triangles stay above Earth.
 function writeFill(buf: Float32Array, ex: number, ey: number, ez: number): boolean {
   const h = horizonParams(ex, ey, ez);
   if (!h) return false;
 
-  const { ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz } = h;
+  const { ux, uy, uz, vx, vy, vz, wx, wy, wz } = h;
+  const theta = Math.acos(h.ct);
 
+  // Nadir (scene coords) — used by the innermost fan.
   const cx =  ux * SURF;
   const cy =  uz * SURF;
   const cz = -uy * SURF;
 
   let idx = 0;
-  for (let i = 0; i < SEG; i++) {
-    const phi0 = (i       / SEG) * 2 * Math.PI;
-    const phi1 = ((i + 1) / SEG) * 2 * Math.PI;
 
-    const [r0x, r0y, r0z] = ringPoint(phi0, ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz);
-    const [r1x, r1y, r1z] = ringPoint(phi1, ct, st, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+  // Precompute sub-ring points for levels 1..N_RADIAL. Level 0 is the nadir.
+  // Storage: one flat array of (SEG+1) wrap-around points per level,
+  // laid out as [level][seg][xyz]. Using a rolling pair saves memory:
+  // we only need the previous level to emit the current level's strip.
+  const prevRing = new Float32Array((SEG + 1) * 3);
+  const currRing = new Float32Array((SEG + 1) * 3);
 
-    buf[idx++] = cx;  buf[idx++] = cy;  buf[idx++] = cz;
-    buf[idx++] = r0x; buf[idx++] = r0y; buf[idx++] = r0z;
-    buf[idx++] = r1x; buf[idx++] = r1y; buf[idx++] = r1z;
+  // Fill prevRing with level 1 (innermost sub-ring).
+  const step = theta / N_RADIAL;
+  for (let s = 0; s <= SEG; s++) {
+    const phi = (s / SEG) * 2 * Math.PI;
+    const [rx, ry, rz] = spherePoint(step, phi, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+    prevRing[s * 3]     = rx;
+    prevRing[s * 3 + 1] = ry;
+    prevRing[s * 3 + 2] = rz;
   }
+
+  // Innermost triangle fan: nadir → prevRing[s] → prevRing[s+1].
+  for (let s = 0; s < SEG; s++) {
+    const a0 = s * 3;
+    const a1 = (s + 1) * 3;
+    buf[idx++] = cx;             buf[idx++] = cy;             buf[idx++] = cz;
+    buf[idx++] = prevRing[a0];   buf[idx++] = prevRing[a0+1]; buf[idx++] = prevRing[a0+2];
+    buf[idx++] = prevRing[a1];   buf[idx++] = prevRing[a1+1]; buf[idx++] = prevRing[a1+2];
+  }
+
+  // Outer quad strips between level k-1 and level k, for k = 2..N_RADIAL.
+  for (let k = 2; k <= N_RADIAL; k++) {
+    const thetaK = (k === N_RADIAL) ? theta : step * k;
+    for (let s = 0; s <= SEG; s++) {
+      const phi = (s / SEG) * 2 * Math.PI;
+      const [rx, ry, rz] = spherePoint(thetaK, phi, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+      currRing[s * 3]     = rx;
+      currRing[s * 3 + 1] = ry;
+      currRing[s * 3 + 2] = rz;
+    }
+
+    for (let s = 0; s < SEG; s++) {
+      const a0 = s * 3;
+      const a1 = (s + 1) * 3;
+      // Quad: prev[s] → curr[s] → curr[s+1] → prev[s+1]
+      // Triangle 1: prev[s], curr[s], curr[s+1]
+      buf[idx++] = prevRing[a0];   buf[idx++] = prevRing[a0+1]; buf[idx++] = prevRing[a0+2];
+      buf[idx++] = currRing[a0];   buf[idx++] = currRing[a0+1]; buf[idx++] = currRing[a0+2];
+      buf[idx++] = currRing[a1];   buf[idx++] = currRing[a1+1]; buf[idx++] = currRing[a1+2];
+      // Triangle 2: prev[s], curr[s+1], prev[s+1]
+      buf[idx++] = prevRing[a0];   buf[idx++] = prevRing[a0+1]; buf[idx++] = prevRing[a0+2];
+      buf[idx++] = currRing[a1];   buf[idx++] = currRing[a1+1]; buf[idx++] = currRing[a1+2];
+      buf[idx++] = prevRing[a1];   buf[idx++] = prevRing[a1+1]; buf[idx++] = prevRing[a1+2];
+    }
+
+    // Roll: curr becomes prev for next iteration.
+    prevRing.set(currRing);
+  }
+
   return true;
 }
 
@@ -244,8 +322,8 @@ function CoverageZonesInner({ tleData, satelliteConstellations }: CoverageZonesP
 
     const pool: PoolEntry[] = [];
     for (let i = 0; i < MAX_SATS; i++) {
-      // Filled disk on Earth surface
-      const fillBuf  = new Float32Array(SEG * 9);
+      // Filled disk on Earth surface (FILL_TRIS triangles × 3 verts × 3 coords)
+      const fillBuf  = new Float32Array(FILL_TRIS * 9);
       const fillAttr = new Float32BufferAttribute(fillBuf, 3);
       fillAttr.setUsage(35048); // DYNAMIC_DRAW
       const fillGeo  = new BufferGeometry();
@@ -405,7 +483,7 @@ function CoverageZonesInner({ tleData, satelliteConstellations }: CoverageZonesP
         continue;
       }
       p.fillAttr.needsUpdate = true;
-      p.fillGeo.setDrawRange(0, SEG * 3);
+      p.fillGeo.setDrawRange(0, FILL_TRIS * 3);
       p.fillGeo.computeBoundingSphere();
       p.fillMesh.visible = true;
 
