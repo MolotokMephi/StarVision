@@ -146,7 +146,21 @@ function ringPoint(
 // Builds N_RADIAL concentric sub-rings between nadir and horizon. The
 // innermost ring is a triangle fan from the nadir; subsequent rings are
 // quad strips (two triangles per segment). Subdivision keeps every
-// chord short enough that the flat triangles stay above Earth.
+// chord short enough that the flat triangles stay above Earth — without
+// it, chords between nadir and horizon ring would dip to SURF·cos(θ/2)
+// which is below Earth's radius 1.0 for any θ > ~14° (i.e. all LEO
+// altitudes), letting Earth's depth buffer occlude most of the disc.
+//
+// Winding between the inner fan and the outer strips is intentionally
+// not unified — the disc uses side: DoubleSide, so both faces render
+// either way. If backface culling is ever enabled, the strips need to
+// be flipped to match the fan.
+//
+// Scratch buffers held at module scope so useFrame doesn't allocate per
+// call. Safe because writeFill runs serially on the main thread.
+const prevRing = new Float32Array((SEG + 1) * 3);
+const currRing = new Float32Array((SEG + 1) * 3);
+
 function writeFill(buf: Float32Array, ex: number, ey: number, ez: number): boolean {
   const h = horizonParams(ex, ey, ez);
   if (!h) return false;
@@ -160,13 +174,6 @@ function writeFill(buf: Float32Array, ex: number, ey: number, ez: number): boole
   const cz = -uy * SURF;
 
   let idx = 0;
-
-  // Precompute sub-ring points for levels 1..N_RADIAL. Level 0 is the nadir.
-  // Storage: one flat array of (SEG+1) wrap-around points per level,
-  // laid out as [level][seg][xyz]. Using a rolling pair saves memory:
-  // we only need the previous level to emit the current level's strip.
-  const prevRing = new Float32Array((SEG + 1) * 3);
-  const currRing = new Float32Array((SEG + 1) * 3);
 
   // Fill prevRing with level 1 (innermost sub-ring).
   const step = theta / N_RADIAL;
@@ -201,12 +208,10 @@ function writeFill(buf: Float32Array, ex: number, ey: number, ez: number): boole
     for (let s = 0; s < SEG; s++) {
       const a0 = s * 3;
       const a1 = (s + 1) * 3;
-      // Quad: prev[s] → curr[s] → curr[s+1] → prev[s+1]
-      // Triangle 1: prev[s], curr[s], curr[s+1]
+      // Quad prev[s] → curr[s] → curr[s+1] → prev[s+1], diagonal prev[s]–curr[s+1].
       buf[idx++] = prevRing[a0];   buf[idx++] = prevRing[a0+1]; buf[idx++] = prevRing[a0+2];
       buf[idx++] = currRing[a0];   buf[idx++] = currRing[a0+1]; buf[idx++] = currRing[a0+2];
       buf[idx++] = currRing[a1];   buf[idx++] = currRing[a1+1]; buf[idx++] = currRing[a1+2];
-      // Triangle 2: prev[s], curr[s+1], prev[s+1]
       buf[idx++] = prevRing[a0];   buf[idx++] = prevRing[a0+1]; buf[idx++] = prevRing[a0+2];
       buf[idx++] = currRing[a1];   buf[idx++] = currRing[a1+1]; buf[idx++] = currRing[a1+2];
       buf[idx++] = prevRing[a1];   buf[idx++] = prevRing[a1+1]; buf[idx++] = prevRing[a1+2];
