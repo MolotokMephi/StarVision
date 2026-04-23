@@ -9,6 +9,8 @@ export interface SatelliteData {
   form_factor: string;
   launch_date: string;
   status: string;
+  operational: boolean;
+  archive_date?: string | null;
   description: string;
 }
 
@@ -39,6 +41,34 @@ export interface OrbitPoint {
   z: number;
 }
 
+// ── Data source / freshness metadata ────────────────────────────────
+
+export type TleEffectiveSource = 'embedded' | 'celestrak' | 'embedded_fallback' | 'mixed';
+
+export interface TleMeta {
+  requested_source: 'embedded' | 'celestrak';
+  effective_source: TleEffectiveSource;
+  fallback: boolean;
+  error: string | null;
+  entries: number;
+  cache_age_sec: number | null;
+  cache_ttl_sec: number;
+  stale: boolean;
+  last_fetch_ok: boolean;
+  last_fetch_error: string | null;
+  last_fetch_age_sec: number | null;
+}
+
+export type BackendStatus = 'ok' | 'degraded' | 'offline' | 'unknown';
+
+export interface BackendHealth {
+  status: BackendStatus;
+  reasons: string[];
+  timestamp: string | null;
+  checked_at: number;          // local epoch ms of last check
+  error: string | null;        // populated when backend is unreachable
+}
+
 // ── UI State ────────────────────────────────────────────────────────
 
 export interface AppState {
@@ -50,6 +80,9 @@ export interface AppState {
   positions: SatellitePosition[];
   orbitPaths: Record<number, OrbitPoint[]>;
   tleData: TLEData[];
+  tleMeta: TleMeta | null;
+  health: BackendHealth;
+  userError: string | null;      // Last user-visible error banner message
 
   // Controls
   timeSpeed: number;
@@ -98,7 +131,9 @@ export interface AppState {
   setSatellites: (sats: SatelliteData[]) => void;
   setPositions: (pos: SatellitePosition[]) => void;
   setOrbitPath: (id: number, path: OrbitPoint[]) => void;
-  setTleData: (data: TLEData[]) => void;
+  setTleData: (data: TLEData[], meta: TleMeta | null) => void;
+  setHealth: (h: BackendHealth) => void;
+  setUserError: (err: string | null) => void;
   resetView: () => void;
 }
 
@@ -121,11 +156,15 @@ export interface StarAIAction {
 export interface APIPositionsResponse {
   positions: SatellitePosition[];
   timestamp: string;
+  source?: string;
+  meta?: TleMeta;
 }
 
 export interface APISatellitesResponse {
   satellites: SatelliteData[];
   count: number;
+  operational_count?: number;
+  archive_count?: number;
 }
 
 export interface APIOrbitResponse {
@@ -133,9 +172,34 @@ export interface APIOrbitResponse {
   name: string;
   path: OrbitPoint[];
   steps: number;
+  source?: string;
+  meta?: TleMeta;
+}
+
+export interface APITleResponse {
+  tle_data: TLEData[];
+  source: TleEffectiveSource;
+  meta: TleMeta;
+}
+
+export interface APIHealthResponse {
+  status: 'ok' | 'degraded';
+  reasons: string[];
+  timestamp: string;
+  tle_cache: {
+    entries: number;
+    cache_age_sec: number | null;
+    cache_ttl_sec: number;
+    stale: boolean;
+    last_fetch_ok: boolean;
+    last_fetch_error: string | null;
+    last_fetch_age_sec: number | null;
+  };
 }
 
 export interface APIChatResponse {
   message: string;
   actions: StarAIAction[];
+  rejected_actions?: string[];
+  source?: string;
 }

@@ -67,11 +67,13 @@ class TestPropagateSatellite:
 class TestPropagateAll:
     """Test batch propagation."""
 
-    def test_propagates_all_satellites_with_tle(self):
+    def test_propagates_only_operational_satellites(self):
         results = propagate_all(TEST_TIME)
-        # All 15 satellites have embedded TLE, including deorbited ones
-        sats_with_tle = sum(1 for s in RUSSIAN_CUBESATS if s.tle_line1 and s.tle_line2)
-        assert len(results) == sats_with_tle
+        # Archival satellites must be skipped — their TLE is stale.
+        operational = sum(1 for s in RUSSIAN_CUBESATS if s.status == "active" and s.tle_line1 and s.tle_line2)
+        assert len(results) == operational
+        # Explicit check: deorbited satellite is never propagated
+        assert 53385 not in {r["norad_id"] for r in results}
 
     def test_each_result_has_required_fields(self):
         results = propagate_all(TEST_TIME)

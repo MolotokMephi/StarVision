@@ -7,11 +7,118 @@ import json
 import os
 import re
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 import httpx
 
-from satellites import RUSSIAN_CUBESATS
+from satellites import RUSSIAN_CUBESATS, is_operational
+
+
+# ── Action validation ───────────────────────────────────────────────
+# Whitelist of StarAI → UI actions with parameter ranges.
+# The AI model is free-form: without a guard the UI would execute any
+# structurally-valid JSON it returned, including invalid NORAD IDs,
+# out-of-range speeds, or undefined action types. We clamp / drop here
+# so the client never has to defend against malformed AI output.
+
+_OPERATIONAL_NORADS = {s.norad_id for s in RUSSIAN_CUBESATS if is_operational(s.status)}
+_ALL_NORADS = {s.norad_id for s in RUSSIAN_CUBESATS}
+_KNOWN_CONSTELLATIONS = {s.constellation for s in RUSSIAN_CUBESATS}
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, value))
+
+
+def _validate_action(action: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Return (validated_action, error). The error is a user-visible
+    string explaining why an action was dropped — None if accepted.
+    """
+    if not isinstance(action, dict):
+        return None, "action is not an object"
+    atype = action.get("type")
+    if not isinstance(atype, str):
+        return None, "action.type missing"
+
+    if atype == "focus_satellite":
+        nid = action.get("norad_id")
+        if not isinstance(nid, int):
+            return None, "focus_satellite.norad_id must be an integer"
+        if nid not in _ALL_NORADS:
+            return None, f"focus_satellite: unknown NORAD {nid}"
+        if nid not in _OPERATIONAL_NORADS:
+            # Archival satellites cannot be tracked live.
+            return None, f"focus_satellite: NORAD {nid} is archival (not operational)"
+        return {"type": "focus_satellite", "norad_id": nid}, None
+
+    if atype == "set_time_speed":
+        speed = action.get("speed")
+        if not isinstance(speed, (int, float)):
+            return None, "set_time_speed.speed must be numeric"
+        return {"type": "set_time_speed", "speed": int(_clamp(speed, 1, 200))}, None
+
+    if atype in ("toggle_orbits", "toggle_links", "toggle_coverage", "toggle_labels"):
+        visible = action.get("visible")
+        if not isinstance(visible, bool):
+            return None, f"{atype}.visible must be boolean"
+        return {"type": atype, "visible": visible}, None
+
+    if atype == "highlight_constellation":
+        name = action.get("name")
+        if not isinstance(name, str):
+            return None, "highlight_constellation.name must be string"
+        if name not in _KNOWN_CONSTELLATIONS:
+            return None, f"highlight_constellation: unknown group '{name}'"
+        return {"type": "highlight_constellation", "name": name}, None
+
+    if atype == "set_satellite_count":
+        count = action.get("count")
+        if not isinstance(count, (int, float)):
+            return None, "set_satellite_count.count must be numeric"
+        return {"type": "set_satellite_count", "count": int(_clamp(count, 3, 15))}, None
+
+    if atype == "set_comm_range":
+        rng = action.get("range_km")
+        if not isinstance(rng, (int, float)):
+            return None, "set_comm_range.range_km must be numeric"
+        return {"type": "set_comm_range", "range_km": int(_clamp(rng, 50, 2000))}, None
+
+    if atype == "set_orbit_altitude":
+        alt = action.get("altitude_km")
+        if not isinstance(alt, (int, float)):
+            return None, "set_orbit_altitude.altitude_km must be numeric"
+        # 0 = real TLE, 400..2000 = virtual
+        alt = 0 if alt <= 0 else int(_clamp(alt, 400, 2000))
+        return {"type": "set_orbit_altitude", "altitude_km": alt}, None
+
+    if atype == "set_orbital_planes":
+        planes = action.get("planes")
+        if not isinstance(planes, (int, float)):
+            return None, "set_orbital_planes.planes must be numeric"
+        return {"type": "set_orbital_planes", "planes": int(_clamp(planes, 1, 7))}, None
+
+    if atype == "reset_view":
+        return {"type": "reset_view"}, None
+
+    return None, f"unknown action type '{atype}'"
+
+
+def validate_actions(actions: List[Any]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Validate a list of actions. Returns (accepted, rejected_reasons)."""
+    if not isinstance(actions, list):
+        return [], ["actions must be a list"]
+    accepted: List[Dict[str, Any]] = []
+    rejected: List[str] = []
+    # Cap at 8 actions per response to keep the UI predictable.
+    for action in actions[:8]:
+        validated, err = _validate_action(action)
+        if validated is not None:
+            accepted.append(validated)
+        elif err:
+            rejected.append(err)
+    if len(actions) > 8:
+        rejected.append(f"dropped {len(actions) - 8} trailing actions (cap=8)")
+    return accepted, rejected
 
 # Anthropic API (via HTTP, no SDK — for simplicity)
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
@@ -88,7 +195,8 @@ async def ask_starai(
     """
     if not ANTHROPIC_API_KEY:
         # Fallback without API key — basic responses
-        return _fallback_response(user_message, lang)
+        raw = _fallback_response(user_message, lang)
+        return _wrap_response(raw.get("message", ""), raw.get("actions", []), lang=lang, source="offline")
 
     messages = []
     if conversation_history:
@@ -122,48 +230,66 @@ async def ask_starai(
                 text += block.get("text", "")
 
         # Parse JSON from response (with ```json block support)
+        parsed = None
         try:
             parsed = json.loads(text)
-            return {
-                "message": parsed.get("message", text),
-                "actions": parsed.get("actions", []),
-            }
         except json.JSONDecodeError:
-            # Try to extract JSON from markdown code block
             json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
             if json_match:
                 try:
                     parsed = json.loads(json_match.group(1).strip())
-                    return {
-                        "message": parsed.get("message", text),
-                        "actions": parsed.get("actions", []),
-                    }
                 except json.JSONDecodeError:
-                    pass
-            # Try to find JSON object in text
-            json_obj_match = re.search(r'\{[\s\S]*"message"[\s\S]*\}', text)
-            if json_obj_match:
-                try:
-                    parsed = json.loads(json_obj_match.group(0))
-                    return {
-                        "message": parsed.get("message", text),
-                        "actions": parsed.get("actions", []),
-                    }
-                except json.JSONDecodeError:
-                    pass
-            return {"message": text, "actions": []}
+                    parsed = None
+            if parsed is None:
+                json_obj_match = re.search(r'\{[\s\S]*"message"[\s\S]*\}', text)
+                if json_obj_match:
+                    try:
+                        parsed = json.loads(json_obj_match.group(0))
+                    except json.JSONDecodeError:
+                        parsed = None
+
+        if parsed is None:
+            return _wrap_response(text, [], lang=lang)
+        return _wrap_response(parsed.get("message", text), parsed.get("actions", []), lang=lang)
 
     except Exception:
         # Log full error on server, do not expose details to user
         logging.exception("StarAI connection error")
-        return {
-            "message": (
+        return _wrap_response(
+            (
                 "StarAI connection error. Working in offline mode."
                 if lang == "en" else
                 "Ошибка соединения с StarAI. Работаю в офлайн-режиме."
             ),
-            "actions": [],
-        }
+            [],
+            lang=lang,
+            source="offline",
+        )
+
+
+def _wrap_response(
+    message: str,
+    actions: List[Any],
+    lang: str = "ru",
+    source: str = "ok",
+) -> Dict[str, Any]:
+    """Validate the proposed action list and append a human-readable
+    warning to the message when some actions are rejected. The UI shows
+    the warning so invalid AI output is never silently dropped.
+    """
+    accepted, rejected = validate_actions(actions)
+    if rejected:
+        if lang == "en":
+            notice = "\n\n⚠️ Dropped invalid actions: " + "; ".join(rejected)
+        else:
+            notice = "\n\n⚠️ Отклонены некорректные действия: " + "; ".join(rejected)
+        message = (message or "") + notice
+    return {
+        "message": message,
+        "actions": accepted,
+        "rejected_actions": rejected,
+        "source": source,
+    }
 
 
 def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:

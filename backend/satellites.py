@@ -20,6 +20,15 @@ class SatelliteInfo:
     tle_line1: str = ""
     tle_line2: str = ""
     description: str = ""
+    archive_date: str = ""    # Deorbit/decommission date for archival satellites
+
+
+def is_operational(status: str) -> bool:
+    """A satellite is operational only when its status is 'active'.
+    Deorbited / inactive satellites are archival — they MUST NOT be
+    propagated, counted in operational KPIs or shown as live on the scene.
+    """
+    return status == "active"
 
 
 # ── Russian CubeSats (real spacecraft) ────────────────────────────────
@@ -93,7 +102,8 @@ RUSSIAN_CUBESATS: List[SatelliteInfo] = [
         status="deorbited",
         tle_line1="1 53385U 22096R   24040.50000000  .00001200  00000-0  70000-4 0  9992",
         tle_line2="2 53385  97.4300 310.0000 0008000  60.0000 300.0000 15.25000000 85006",
-        description="Первый частный наноспутник из Санкт-Петербурга (Геоскан). Лётные испытания платформы, газовый двигатель ОКБ «Факел». Сведён с орбиты 2024-02-18."
+        description="Первый частный наноспутник из Санкт-Петербурга (Геоскан). Лётные испытания платформы, газовый двигатель ОКБ «Факел». Сведён с орбиты 2024-02-18.",
+        archive_date="2024-02-18",
     ),
 
     # --- Launch 2023-06-27, Soyuz-2.1b, Vostochny (SSO ~550 km, i≈97.6°) ---
@@ -232,22 +242,34 @@ RUSSIAN_CUBESATS: List[SatelliteInfo] = [
 ]
 
 
+def _serialize_satellite(s: SatelliteInfo) -> dict:
+    return {
+        "norad_id": s.norad_id,
+        "name": s.name,
+        "constellation": s.constellation,
+        "purpose": s.purpose,
+        "mass_kg": s.mass_kg,
+        "form_factor": s.form_factor,
+        "launch_date": s.launch_date,
+        "status": s.status,
+        "operational": is_operational(s.status),
+        "archive_date": s.archive_date or None,
+        "description": s.description,
+    }
+
+
 def get_all_satellites() -> List[dict]:
-    """Return all satellites as a list of dicts."""
-    return [
-        {
-            "norad_id": s.norad_id,
-            "name": s.name,
-            "constellation": s.constellation,
-            "purpose": s.purpose,
-            "mass_kg": s.mass_kg,
-            "form_factor": s.form_factor,
-            "launch_date": s.launch_date,
-            "status": s.status,
-            "description": s.description,
-        }
-        for s in RUSSIAN_CUBESATS
-    ]
+    """Return all satellites — operational and archival — as a list of dicts.
+    Clients should use the explicit `operational` flag to drive live
+    rendering; archival satellites remain available for catalog/history
+    queries only.
+    """
+    return [_serialize_satellite(s) for s in RUSSIAN_CUBESATS]
+
+
+def get_operational_satellites() -> List[SatelliteInfo]:
+    """Return only operational satellites (status == 'active')."""
+    return [s for s in RUSSIAN_CUBESATS if is_operational(s.status)]
 
 
 def get_satellite_by_id(norad_id: int) -> Optional[SatelliteInfo]:
@@ -258,9 +280,9 @@ def get_satellite_by_id(norad_id: int) -> Optional[SatelliteInfo]:
 
 
 def get_tle_data() -> List[dict]:
-    """Return TLE for active satellites (for frontend).
-    Deorbited spacecraft are excluded — their TLE are stale and produce
-    physically meaningless coordinates.
+    """Return TLE for operational satellites only.
+    Archival (deorbited / inactive) spacecraft are excluded — their TLE
+    are stale and produce physically meaningless coordinates.
     """
     return [
         {
@@ -271,5 +293,5 @@ def get_tle_data() -> List[dict]:
             "tle_line2": s.tle_line2,
         }
         for s in RUSSIAN_CUBESATS
-        if s.tle_line1 and s.tle_line2 and s.status != "deorbited"
+        if s.tle_line1 and s.tle_line2 and is_operational(s.status)
     ]

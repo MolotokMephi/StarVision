@@ -30,6 +30,7 @@ import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
 import { useStore } from '../hooks/useStore';
 import { CONSTELLATION_COLORS, CONSTELLATION_NAMES } from '../constants';
+import { selectRealSatellites } from '../selection';
 import type { TLEData } from '../types';
 
 // ── Constants ─────────────────────────────────────────────────────────
@@ -270,21 +271,14 @@ function CoverageZonesInner({ tleData, satelliteConstellations }: CoverageZonesP
     const simTimeSec = simTime / 1000;
     const useVirtual = orbitAltitudeKm > 0;
 
-    // Pick the same satellites Satellites.tsx renders, with the same
-    // filter semantics (no "missing constellation" fallback), so zones
-    // always align with visible markers.
-    const filteredTLE = useVirtual ? [] : curTLE.filter((tle) => {
-      const c = curCon[tle.norad_id];
-      return activeConstellations.includes(c);
-    });
-    const tleLimit = Math.min(satelliteCount, filteredTLE.length);
-    const step = filteredTLE.length > 0 ? filteredTLE.length / satelliteCount : 1;
+    // Pick the same satellites Satellites.tsx renders via the shared
+    // selection helper — zones always align with visible markers.
     const selectedTLE = useVirtual
       ? []
-      : Array.from({ length: tleLimit }, (_, i) => filteredTLE[Math.floor(i * step)]);
+      : selectRealSatellites(curTLE, satelliteCount, activeConstellations, curCon);
 
     const virtualLimit = useVirtual ? satelliteCount : 0;
-    const limit = useVirtual ? virtualLimit : tleLimit;
+    const limit = useVirtual ? virtualLimit : selectedTLE.length;
 
     for (let i = 0; i < MAX_SATS; i++) {
       const p = pool[i];

@@ -14,6 +14,7 @@ import { Vector3, Group } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime, advanceSimTime } from '../simClock';
 import { CONSTELLATION_COLORS, CONSTELLATION_NAMES, CONSTELLATION_MODEL_TYPE } from '../constants';
+import { selectRealSatellites } from '../selection';
 import type { SatellitePosition, OrbitPoint, TLEData } from '../types';
 
 const EARTH_RADIUS = 6371.0;
@@ -26,13 +27,6 @@ function getColor(constellation: string): string {
 
 function getModelType(constellation: string): number {
   return CONSTELLATION_MODEL_TYPE[constellation] ?? 0;
-}
-
-// ── Uniform selection of N elements from array ──────────────────
-function selectUniformly<T>(arr: T[], count: number): T[] {
-  if (count >= arr.length) return arr;
-  const step = arr.length / count;
-  return Array.from({ length: count }, (_, i) => arr[Math.floor(i * step)]);
 }
 
 // ── Virtual circular orbits ────────────────────────────────────────
@@ -439,14 +433,17 @@ export function Satellites({
     return allVirt.filter((sat) => activeConstellations.includes(sat.constellation));
   }, [orbitAltitudeKm, satelliteCount, activeConstellations]);
 
-  // Real TLE mode: select N satellites uniformly
+  // Real TLE mode: select N satellites uniformly. Backend already
+  // excludes archival sats from `positions`, but we use the shared
+  // selection helper so Satellites / ISL / CoverageZones agree.
   const filteredRealPositions = useMemo(() => {
     if (orbitAltitudeKm > 0) return [];
-    const filtered = positions.filter((p) => {
-      const c = satelliteConstellations[p.norad_id];
-      return activeConstellations.includes(c);
-    });
-    return selectUniformly(filtered, satelliteCount);
+    return selectRealSatellites(
+      positions,
+      satelliteCount,
+      activeConstellations,
+      satelliteConstellations,
+    );
   }, [positions, activeConstellations, satelliteConstellations, satelliteCount, orbitAltitudeKm]);
 
   // Store orbit params in a ref so getECI closures always read the latest values

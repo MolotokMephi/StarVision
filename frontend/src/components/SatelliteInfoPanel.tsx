@@ -32,6 +32,7 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
           form_factor: 'Virtual',
           launch_date: '—',
           status: 'active',
+          operational: true,
           description: lang === 'en'
             ? `Virtual satellite on circular orbit at ${orbitAltitudeKm} km altitude, ${orbitalPlanes} orbital planes, ${satelliteCount} total S/C.`
             : `Виртуальный спутник на круговой орбите высотой ${orbitAltitudeKm} км, ${orbitalPlanes} плоскостей, ${satelliteCount} КА.`,
@@ -117,6 +118,12 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
   const min = lang === 'ru' ? 'мин' : 'min';
   const kg = lang === 'ru' ? 'кг' : 'kg';
 
+  const isArchival = satData.operational === false;
+  const statusLabel = isArchival
+    ? (satData.status === 'deorbited' ? t('info.deorbited', lang) : t('info.archived', lang))
+    : t('info.active', lang);
+  const statusDotClass = isArchival ? 'bg-red-400' : 'bg-green-400';
+
   return (
     <div
       className="glass-panel absolute top-16 right-4 w-80 p-4 animate-slide-right z-10"
@@ -139,15 +146,14 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
       </div>
 
       {/* Status */}
-      <div className="flex items-center gap-2 mb-3">
-        <span
-          className={`inline-block w-2 h-2 rounded-full ${
-            satData.status === 'active' ? 'bg-green-400' : 'bg-red-400'
-          }`}
-        />
-        <span className="text-xs text-star-400 font-mono">
-          {satData.status === 'active' ? t('info.active', lang) : t('info.inactive', lang)}
-        </span>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className={`inline-block w-2 h-2 rounded-full ${statusDotClass}`} />
+        <span className="text-xs text-star-400 font-mono">{statusLabel}</span>
+        {isArchival && (
+          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-red-900/40 border border-red-500/40 text-red-200">
+            ARCHIVE
+          </span>
+        )}
         <span className="text-xs text-star-600 font-mono">|</span>
         <span className="text-xs text-star-400 font-mono">{satData.form_factor}</span>
         {!isVirtual && (
@@ -158,13 +164,19 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         )}
       </div>
 
+      {isArchival && (
+        <p className="text-[11px] text-red-300 font-body mb-3 leading-snug">
+          {t('info.archivalNoTelemetry', lang)}
+        </p>
+      )}
+
       {/* Description */}
       <p className="text-xs text-star-300 font-body mb-4 leading-relaxed">
         {satData.description}
       </p>
 
-      {/* Telemetry */}
-      {effectivePos && (
+      {/* Telemetry — archival sats produce no meaningful telemetry */}
+      {effectivePos && !isArchival && (
         <div className="space-y-1 mb-4">
           <SectionTitle>{t('info.telemetry', lang)}</SectionTitle>
           <DataRow label={t('info.altitude', lang)} value={`${effectivePos.altitude_km.toFixed(1)} ${km}`} />
@@ -175,8 +187,8 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         </div>
       )}
 
-      {/* ECI coordinates */}
-      {effectivePos && (
+      {/* ECI coordinates — archival sats produce no meaningful coords */}
+      {effectivePos && !isArchival && (
         <div className="space-y-1 mb-4">
           <SectionTitle>{t('info.eciCoords', lang)}</SectionTitle>
           <DataRow label="X" value={effectivePos.eci.x.toFixed(1)} />
@@ -194,12 +206,16 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         {!isVirtual && (
           <DataRow label={t('info.launch', lang)} value={satData.launch_date} />
         )}
+        {isArchival && satData.archive_date && (
+          <DataRow label={t('info.archiveDate', lang)} value={satData.archive_date} />
+        )}
       </div>
 
-      {/* Focus button */}
+      {/* Focus button — disabled for archival spacecraft */}
       <button
-        onClick={() => focusSatellite(selectedSatellite)}
-        className="btn-star w-full mt-4 text-xs py-2"
+        onClick={() => !isArchival && focusSatellite(selectedSatellite)}
+        disabled={isArchival}
+        className={`btn-star w-full mt-4 text-xs py-2 ${isArchival ? 'opacity-40 cursor-not-allowed' : ''}`}
       >
         {t('info.focusCamera', lang)}
       </button>

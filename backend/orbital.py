@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Tuple
 from sgp4.api import Satrec, WGS72
 from sgp4.api import jday
 
-from satellites import RUSSIAN_CUBESATS, SatelliteInfo
+from satellites import RUSSIAN_CUBESATS, SatelliteInfo, is_operational
 
 # ── Constants ──────────────────────────────────────────────────────
 EARTH_RADIUS_KM = 6371.0
@@ -132,6 +132,10 @@ def propagate_all(
 
     results = []
     for sat in RUSSIAN_CUBESATS:
+        # Archival satellites (deorbited / inactive) carry stale TLE and
+        # would yield physically meaningless coordinates — skip them.
+        if not is_operational(sat.status):
+            continue
         tle1, tle2 = _resolve_tle(sat, tle_override)
         if tle1 and tle2:
             sat_copy = _with_tle(sat, tle1, tle2)
@@ -182,6 +186,8 @@ def predict_collisions(
     steps = int(hours_ahead * 3600 / step_sec)
     sats_with_tle = []
     for s in RUSSIAN_CUBESATS:
+        if not is_operational(s.status):
+            continue
         t1, t2 = _resolve_tle(s, tle_override)
         if t1 and t2:
             sats_with_tle.append(_with_tle(s, t1, t2))

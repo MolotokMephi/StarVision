@@ -67,9 +67,20 @@ class TestGetAllSatellites:
         item = get_all_satellites()[0]
         expected_keys = {
             "norad_id", "name", "constellation", "purpose",
-            "mass_kg", "form_factor", "launch_date", "status", "description",
+            "mass_kg", "form_factor", "launch_date", "status",
+            "operational", "archive_date", "description",
         }
         assert set(item.keys()) == expected_keys
+
+    def test_operational_flag(self):
+        items = get_all_satellites()
+        for item in items:
+            assert item["operational"] == (item["status"] == "active")
+        # exactly one deorbited satellite
+        archival = [i for i in items if not i["operational"]]
+        assert len(archival) == 1
+        assert archival[0]["status"] == "deorbited"
+        assert archival[0]["archive_date"] == "2024-02-18"
 
 
 class TestGetSatelliteById:

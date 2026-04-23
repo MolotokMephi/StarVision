@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
-import { fetchTLE, refreshTLE } from '../services/api';
+import { fetchTLE, refreshTLE, ApiError } from '../services/api';
 import { CONSTELLATION_COLORS } from '../constants';
 
 const SPEED_PRESETS = [
@@ -28,18 +28,30 @@ export function ControlPanel() {
     orbitalPlanes, setOrbitalPlanes,
     setTleData,
     resetView,
+    tleMeta,
+    setUserError,
   } = useStore();
 
   const [tleLoading, setTleLoading] = useState(false);
+  const [tleError, setTleError] = useState<string | null>(null);
 
   const handleTleSourceChange = async (source: 'embedded' | 'celestrak') => {
     setTleSource(source);
     setTleLoading(true);
+    setTleError(null);
     try {
       const res = await fetchTLE(source);
-      setTleData(res.tle_data);
-    } catch {
-      // fallback — keep existing data on error
+      setTleData(res.tle_data, res.meta);
+      if (res.meta?.fallback && res.meta?.error) {
+        const msg = t('control.tleFallbackWarn', lang);
+        setTleError(msg);
+        setUserError(msg);
+      }
+    } catch (err) {
+      const detail = (err as ApiError)?.detail || (err as Error)?.message || 'unknown';
+      const msg = t('control.tleError', lang, { error: detail });
+      setTleError(msg);
+      setUserError(msg);
     } finally {
       setTleLoading(false);
     }
@@ -47,15 +59,30 @@ export function ControlPanel() {
 
   const handleTleRefresh = async () => {
     setTleLoading(true);
+    setTleError(null);
     try {
       const res = await refreshTLE();
-      setTleData(res.tle_data);
+      setTleData(res.tle_data, res.meta);
       setTleSource('celestrak');
-    } catch {
-      // ignore
+      if (res.meta?.fallback && res.meta?.error) {
+        const msg = t('control.tleFallbackWarn', lang);
+        setTleError(msg);
+        setUserError(msg);
+      }
+    } catch (err) {
+      const detail = (err as ApiError)?.detail || (err as Error)?.message || 'unknown';
+      const msg = t('control.tleError', lang, { error: detail });
+      setTleError(msg);
+      setUserError(msg);
     } finally {
       setTleLoading(false);
     }
+  };
+
+  const formatCacheAge = (sec: number | null): string => {
+    if (sec === null) return t('control.tleNeverFetched', lang);
+    if (sec < 60) return t('control.tleAgeSec', lang, { sec: Math.round(sec) });
+    return t('control.tleAgeMin', lang, { min: Math.round(sec / 60) });
   };
 
   const planesWord = lang === 'ru'
@@ -188,6 +215,18 @@ export function ControlPanel() {
           {tleLoading && (
             <p className="text-[9px] text-star-600 font-mono mt-1 animate-pulse">
               {t('control.tleLoading', lang)}
+            </p>
+          )}
+          {tleError && !tleLoading && (
+            <p className="text-[10px] text-red-400 font-mono mt-1 break-words">
+              {tleError}
+            </p>
+          )}
+          {tleMeta && !tleLoading && !tleError && tleSource === 'celestrak' && (
+            <p className="text-[9px] text-star-600 font-mono mt-1">
+              {tleMeta.fallback ? '⚠ ' : ''}
+              {tleMeta.effective_source} · {formatCacheAge(tleMeta.cache_age_sec)}
+              {tleMeta.stale ? ' · STALE' : ''}
             </p>
           )}
         </div>

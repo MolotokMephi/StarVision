@@ -111,7 +111,7 @@ interface CameraControllerProps {
 
 function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPlanes, controlsRef }: CameraControllerProps) {
   const { camera } = useThree();
-  const { focusedSatellite, selectedSatellite, cameraFollowing, setCameraFollowing, selectSatellite } = useStore();
+  const { focusedSatellite, selectedSatellite, cameraFollowing, setCameraFollowing } = useStore();
   const prevDistRef = useRef<number>(0);
   const isAnimatingRef = useRef(false);
   const offsetRef = useRef(new Vector3(0, 0.3, 0.8));
@@ -126,6 +126,26 @@ function CameraController({ tleData, orbitAltitudeKm, satelliteCount, orbitalPla
     });
     satrecsRef.current = map;
   }, [tleData]);
+
+  // When the tracked satellite is no longer available (TLE dropped,
+  // user switched to virtual mode, archival spacecraft, etc.) drop the
+  // follow state cleanly so the camera returns to the Earth target
+  // instead of staying "stuck" on a ghost.
+  useEffect(() => {
+    const id = focusedSatellite ?? selectedSatellite;
+    if (id == null) return;
+    const inVirtualMode = orbitAltitudeKm > 0;
+    const isVirtualId = id >= 90000;
+    if (inVirtualMode !== isVirtualId) {
+      setCameraFollowing(false);
+      if (controlsRef.current) controlsRef.current.target.set(0, 0, 0);
+      return;
+    }
+    if (!isVirtualId && !satrecsRef.current[id]) {
+      setCameraFollowing(false);
+      if (controlsRef.current) controlsRef.current.target.set(0, 0, 0);
+    }
+  }, [focusedSatellite, selectedSatellite, orbitAltitudeKm, tleData, setCameraFollowing, controlsRef]);
 
   // Get current ECI position for any satellite id
   const getSatPosition = useCallback((id: number): Vector3 | null => {

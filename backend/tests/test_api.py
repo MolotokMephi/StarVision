@@ -34,6 +34,29 @@ async def test_list_satellites(client):
     assert "satellites" in data
     assert data["count"] == 15
     assert len(data["satellites"]) == 15
+    assert data["operational_count"] == 14
+    assert data["archive_count"] == 1
+    for sat in data["satellites"]:
+        assert "operational" in sat
+        assert sat["operational"] == (sat["status"] == "active")
+
+
+@pytest.mark.asyncio
+async def test_health(client):
+    resp = await client.get("/api/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] in ("ok", "degraded")
+    assert "tle_cache" in data
+
+
+@pytest.mark.asyncio
+async def test_tle_status(client):
+    resp = await client.get("/api/tle/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "entries" in data
+    assert "cache_ttl_sec" in data
 
 
 @pytest.mark.asyncio
@@ -59,6 +82,13 @@ async def test_get_tle_embedded(client):
     assert data["source"] == "embedded"
     assert "tle_data" in data
     assert len(data["tle_data"]) > 0
+    assert "meta" in data
+    assert data["meta"]["requested_source"] == "embedded"
+    assert data["meta"]["effective_source"] == "embedded"
+    assert data["meta"]["fallback"] is False
+    # Archival satellite must not be included
+    norad_ids = [e["norad_id"] for e in data["tle_data"]]
+    assert 53385 not in norad_ids
 
 
 @pytest.mark.asyncio
@@ -73,10 +103,24 @@ async def test_get_positions(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "positions" in data
-    assert len(data["positions"]) > 0
+    assert len(data["positions"]) == 14  # 15 catalog - 1 archival
+    assert 53385 not in {p["norad_id"] for p in data["positions"]}
     pos = data["positions"][0]
     assert "eci" in pos
     assert "altitude_km" in pos
+    assert "meta" in data
+
+
+@pytest.mark.asyncio
+async def test_orbit_archival_rejected(client):
+    resp = await client.get("/api/orbit/53385")
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_orbital_elements_archival_rejected(client):
+    resp = await client.get("/api/orbital-elements/53385")
+    assert resp.status_code == 409
 
 
 @pytest.mark.asyncio

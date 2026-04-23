@@ -19,6 +19,7 @@ import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
 import { useStore } from '../hooks/useStore';
 import { CONSTELLATION_NAMES } from '../constants';
+import { selectRealSatellites } from '../selection';
 import type { TLEData } from '../types';
 
 const EARTH_RADIUS = 6371.0;
@@ -239,15 +240,13 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
         .filter((p) => activeConstellations.includes(p.constellation));
     } else if (satrecsRef.current.length > 0) {
       const now = new Date(simTime);
-      const filtered = satrecsRef.current.filter(({ norad_id, constellation }) => {
-        const c = constellation || satelliteConstellations[norad_id];
-        return activeConstellations.includes(c);
-      });
-
-      const step = Math.max(1, filtered.length / satelliteCount);
-      const selected = Array.from(
-        { length: Math.min(satelliteCount, filtered.length) },
-        (_, i) => filtered[Math.floor(i * step)]
+      // Shared selection: identical to Satellites.tsx / CoverageZones.tsx
+      // so the ISL counter references the same spacecraft that are drawn.
+      const selected = selectRealSatellites(
+        satrecsRef.current,
+        satelliteCount,
+        activeConstellations,
+        satelliteConstellations,
       );
 
       eciPositions = [];

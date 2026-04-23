@@ -2,6 +2,78 @@ import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../hooks/useStore';
 import { sendChatMessage } from '../services/api';
 import { t } from '../i18n';
+import type { SatelliteData } from '../types';
+
+// Client-side mirror of the backend whitelist. The server now validates
+// actions, but the UI must not crash on a malformed payload from an
+// older/misconfigured server. Returns the sanitised action, or null
+// with a reason for rejection (surfaced to the user).
+function sanitizeAction(
+  action: Record<string, unknown>,
+  satellites: SatelliteData[],
+): { action: Record<string, unknown> | null; reason?: string } {
+  if (!action || typeof action !== 'object') return { action: null, reason: 'not object' };
+  const type = typeof action.type === 'string' ? action.type : null;
+  if (!type) return { action: null, reason: 'missing type' };
+
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const bool = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null);
+
+  switch (type) {
+    case 'focus_satellite': {
+      const nid = num(action.norad_id);
+      if (nid === null) return { action: null, reason: 'norad_id required' };
+      const sat = satellites.find((s) => s.norad_id === nid);
+      if (!sat) return { action: null, reason: `unknown NORAD ${nid}` };
+      if (!sat.operational) return { action: null, reason: `${sat.name} is archival` };
+      return { action: { type, norad_id: nid } };
+    }
+    case 'set_time_speed': {
+      const v = num(action.speed);
+      if (v === null) return { action: null, reason: 'speed required' };
+      return { action: { type, speed: Math.round(clamp(v, 1, 200)) } };
+    }
+    case 'toggle_orbits':
+    case 'toggle_links':
+    case 'toggle_coverage':
+    case 'toggle_labels': {
+      const v = bool(action.visible);
+      if (v === null) return { action: null, reason: `${type}.visible must be boolean` };
+      return { action: { type, visible: v } };
+    }
+    case 'highlight_constellation': {
+      const name = typeof action.name === 'string' ? action.name : null;
+      if (!name) return { action: null, reason: 'name required' };
+      return { action: { type, name } };
+    }
+    case 'set_satellite_count': {
+      const v = num(action.count);
+      if (v === null) return { action: null, reason: 'count required' };
+      return { action: { type, count: Math.round(clamp(v, 3, 15)) } };
+    }
+    case 'set_comm_range': {
+      const v = num(action.range_km);
+      if (v === null) return { action: null, reason: 'range_km required' };
+      return { action: { type, range_km: Math.round(clamp(v, 50, 2000)) } };
+    }
+    case 'set_orbit_altitude': {
+      const v = num(action.altitude_km);
+      if (v === null) return { action: null, reason: 'altitude_km required' };
+      const alt = v <= 0 ? 0 : Math.round(clamp(v, 400, 2000));
+      return { action: { type, altitude_km: alt } };
+    }
+    case 'set_orbital_planes': {
+      const v = num(action.planes);
+      if (v === null) return { action: null, reason: 'planes required' };
+      return { action: { type, planes: Math.round(clamp(v, 1, 7)) } };
+    }
+    case 'reset_view':
+      return { action: { type } };
+    default:
+      return { action: null, reason: `unknown action ${type}` };
+  }
+}
 
 // SVG Star icon for StarAI
 function StarIcon({ size = 24, className = '' }: { size?: number; className?: string }) {
@@ -48,6 +120,8 @@ export function StarAIChat() {
     setOrbitAltitudeKm,
     setOrbitalPlanes,
     resetView,
+    satellites,
+    setUserError,
   } = useStore();
 
   const [input, setInput] = useState('');
@@ -60,49 +134,60 @@ export function StarAIChat() {
   }, [chatMessages]);
 
   const executeActions = (actions: any[]) => {
-    for (const action of actions) {
+    if (!Array.isArray(actions)) return;
+    const rejected: string[] = [];
+    // Cap identical to the backend so UI can't be flooded.
+    for (const raw of actions.slice(0, 8)) {
+      const { action, reason } = sanitizeAction(raw ?? {}, satellites);
+      if (!action) {
+        if (reason) rejected.push(reason);
+        continue;
+      }
       try {
         switch (action.type) {
           case 'focus_satellite':
-            focusSatellite(action.norad_id);
+            focusSatellite(action.norad_id as number);
             break;
           case 'set_time_speed':
-            setTimeSpeed(action.speed);
+            setTimeSpeed(action.speed as number);
             break;
           case 'toggle_orbits':
-            setShowOrbits(action.visible);
+            setShowOrbits(action.visible as boolean);
             break;
           case 'toggle_links':
-            setShowLinks(action.visible);
+            setShowLinks(action.visible as boolean);
             break;
           case 'highlight_constellation':
-            highlightConstellation(action.name);
+            highlightConstellation(action.name as string);
             break;
           case 'set_satellite_count':
-            setSatelliteCount(action.count);
+            setSatelliteCount(action.count as number);
             break;
           case 'set_comm_range':
-            setCommRangeKm(action.range_km);
+            setCommRangeKm(action.range_km as number);
             break;
           case 'set_orbit_altitude':
-            setOrbitAltitudeKm(action.altitude_km);
+            setOrbitAltitudeKm(action.altitude_km as number);
             break;
           case 'toggle_coverage':
-            setShowCoverage(action.visible);
+            setShowCoverage(action.visible as boolean);
             break;
           case 'toggle_labels':
-            setShowLabels(action.visible);
+            setShowLabels(action.visible as boolean);
             break;
           case 'set_orbital_planes':
-            setOrbitalPlanes(action.planes);
+            setOrbitalPlanes(action.planes as number);
             break;
           case 'reset_view':
             resetView();
             break;
         }
       } catch (err) {
-        console.warn('StarAI action failed:', action.type, err);
+        rejected.push(`${action.type}: ${(err as Error)?.message ?? 'runtime error'}`);
       }
+    }
+    if (rejected.length > 0) {
+      setUserError(t('chat.invalidAction', lang, { reason: rejected.join('; ') }));
     }
   };
 
@@ -131,6 +216,15 @@ export function StarAIChat() {
 
       if (response.actions?.length > 0) {
         executeActions(response.actions);
+      }
+      // Surface anything the server rejected so the user sees StarAI
+      // tried to do something invalid (e.g. focus an archival sat).
+      if (Array.isArray(response.rejected_actions) && response.rejected_actions.length > 0) {
+        setUserError(
+          t('chat.invalidAction', lang, {
+            reason: response.rejected_actions.join('; '),
+          }),
+        );
       }
     } catch (err) {
       addChatMessage({

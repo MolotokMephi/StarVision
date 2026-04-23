@@ -3,6 +3,7 @@ main.py — StarVision Backend (FastAPI)
 Digital twin of a Russian CubeSat constellation.
 """
 
+import logging
 import math
 import os
 from datetime import datetime, timezone
@@ -13,13 +14,18 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from satellites import get_all_satellites, get_satellite_by_id, get_tle_data
+from satellites import (
+    get_all_satellites, get_satellite_by_id, get_tle_data,
+    is_operational,
+)
 from orbital import (
     propagate_all, propagate_satellite, propagate_orbit_path,
     get_orbital_elements, predict_collisions, optimize_plane_distribution,
 )
 from ai_assistant import ask_starai
-from celestrak import get_tle_by_source, invalidate_cache, fetch_celestrak_tle
+from celestrak import (
+    get_tle_by_source, invalidate_cache, fetch_celestrak_tle, get_cache_status,
+)
 
 load_dotenv()
 
@@ -57,17 +63,53 @@ class ChatRequest(BaseModel):
 
 
 # ── Helper: TLE override ──────────────────────────────────────────
-async def _get_tle_override(source: str) -> Optional[dict]:
-    """Return dict norad_id → (line1, line2) for the given source.
-    For 'embedded' returns None (orbital.py uses built-in TLE).
-    For 'celestrak' — fetches from CelesTrak.
+async def _get_tle_override(source: str) -> tuple:
+    """Return (override_dict, meta) for the given source.
+
+    * source="embedded": (None, meta) — orbital.py uses the built-in TLE.
+    * source="celestrak": (dict, meta) — fetched from CelesTrak; if the
+      network is down, override is None and meta.fallback=True so the
+      caller can surface the degradation.
     """
     if source != "celestrak":
-        return None
+        return None, {
+            "requested_source": "embedded",
+            "effective_source": "embedded",
+            "fallback": False,
+            "error": None,
+            **get_cache_status(),
+        }
     try:
-        return await fetch_celestrak_tle()
-    except Exception:
-        return None
+        override = await fetch_celestrak_tle()
+    except Exception as e:
+        logging.getLogger(__name__).error("CelesTrak override failed: %s", e)
+        override = None
+    status = get_cache_status()
+    if not override:
+        return None, {
+            "requested_source": "celestrak",
+            "effective_source": "embedded_fallback",
+            "fallback": True,
+            "error": status.get("last_fetch_error") or "CelesTrak unavailable",
+            **status,
+        }
+    return override, {
+        "requested_source": "celestrak",
+        "effective_source": "celestrak",
+        "fallback": False,
+        "error": None,
+        **status,
+    }
+
+
+# ── Helper: operational filter on propagate_all output ─────────────
+def _filter_operational(positions: list) -> list:
+    """Guard against any archival satellite slipping into the position
+    stream. propagate_all already filters, but we double-check here so
+    an upstream regression cannot silently leak stale orbits.
+    """
+    allowed = {s["norad_id"] for s in get_all_satellites() if s["operational"]}
+    return [p for p in positions if p["norad_id"] in allowed]
 
 
 # ── Endpoints: Satellites ───────────────────────────────────────────
@@ -82,9 +124,17 @@ async def root():
 
 @app.get("/api/satellites")
 async def list_satellites():
-    """List all satellites with metadata."""
+    """List all satellites with metadata. Every item carries an
+    `operational` flag — clients must use it to decide whether to
+    render/count/propagate a spacecraft.
+    """
     sats = get_all_satellites()
-    return {"satellites": sats, "count": len(sats)}
+    return {
+        "satellites": sats,
+        "count": len(sats),
+        "operational_count": sum(1 for s in sats if s["operational"]),
+        "archive_count": sum(1 for s in sats if not s["operational"]),
+    }
 
 
 @app.get("/api/satellites/{norad_id}")
@@ -102,30 +152,68 @@ async def get_satellite(norad_id: int):
         "form_factor": sat.form_factor,
         "launch_date": sat.launch_date,
         "status": sat.status,
+        "operational": is_operational(sat.status),
+        "archive_date": sat.archive_date or None,
         "description": sat.description,
     }
 
 
 @app.get("/api/tle")
 async def get_tle(source: str = Query(default="embedded", pattern="^(embedded|celestrak)$")):
+    """TLE data for client-side SGP4 propagation.
+    Always returns a `meta` block describing the actual source, cache
+    age, and any upstream error — clients must surface this to users.
     """
-    TLE data for client-side SGP4 propagation.
-    ?source=embedded — built-in data (default)
-    ?source=celestrak — load from CelesTrak (with fallback to built-in)
-    """
-    tle_data = await get_tle_by_source(source)
-    return {"tle_data": tle_data, "source": source}
+    payload = await get_tle_by_source(source)
+    return {
+        "tle_data": payload["tle_data"],
+        "source": payload["meta"]["effective_source"],
+        "meta": payload["meta"],
+    }
 
 
 @app.post("/api/tle/refresh")
 async def refresh_tle():
-    """Force refresh TLE cache from CelesTrak."""
+    """Force refresh TLE cache from CelesTrak. Returns the same
+    contract as GET /api/tle so the client does not have to branch.
+    """
     invalidate_cache()
-    tle_data = await get_tle_by_source("celestrak")
+    payload = await get_tle_by_source("celestrak")
     return {
-        "tle_data": tle_data,
-        "source": "celestrak",
+        "tle_data": payload["tle_data"],
+        "source": payload["meta"]["effective_source"],
+        "meta": payload["meta"],
         "refreshed": True,
+    }
+
+
+@app.get("/api/tle/status")
+async def tle_status():
+    """Expose the live CelesTrak cache state (age, ttl, last error)."""
+    return get_cache_status()
+
+
+@app.get("/api/health")
+async def health():
+    """Lightweight liveness probe. Reports backend status + TLE cache
+    health so the frontend can drive the real "ONLINE / DEGRADED / OFFLINE"
+    status indicator instead of a hard-coded light.
+    """
+    cache = get_cache_status()
+    degraded = False
+    reasons: list[str] = []
+    # A stale cache with a recorded error means live data is broken.
+    if cache["last_fetch_error"] and not cache["last_fetch_ok"]:
+        degraded = True
+        reasons.append("celestrak_unreachable")
+    if cache["stale"]:
+        reasons.append("cache_stale")
+    status = "degraded" if degraded else "ok"
+    return {
+        "status": status,
+        "reasons": reasons,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "tle_cache": cache,
     }
 
 
@@ -136,7 +224,8 @@ async def get_positions(
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
     """
-    Current positions of all satellites (ECI + geo).
+    Current positions of operational satellites (ECI + geo).
+    Archival (deorbited/inactive) spacecraft are never included.
     ?timestamp=2026-03-29T12:00:00Z — for a specific moment.
     ?source=embedded|celestrak — TLE data source.
     """
@@ -146,11 +235,13 @@ async def get_positions(
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid timestamp format")
-    tle_override = await _get_tle_override(source)
+    tle_override, meta = await _get_tle_override(source)
+    positions = _filter_operational(propagate_all(dt, tle_override=tle_override))
     return {
-        "positions": propagate_all(dt, tle_override=tle_override),
+        "positions": positions,
         "timestamp": (dt or datetime.now(timezone.utc)).isoformat(),
-        "source": source,
+        "source": meta["effective_source"],
+        "meta": meta,
     }
 
 
@@ -161,13 +252,29 @@ async def get_orbit_path(
     step_sec: float = Query(default=60.0, ge=10, le=600),
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
-    """Orbital track for visualization."""
+    """Orbital track for visualization.
+    Returns 409 for archival satellites — their stale TLE would yield
+    meaningless trajectories. Clients should hide the "focus" action for
+    non-operational spacecraft.
+    """
     sat = get_satellite_by_id(norad_id)
     if not sat:
         raise HTTPException(status_code=404, detail="Satellite not found")
-    tle_override = await _get_tle_override(source)
+    if not is_operational(sat.status):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Satellite {norad_id} is archival ({sat.status}); orbit unavailable",
+        )
+    tle_override, meta = await _get_tle_override(source)
     path = propagate_orbit_path(sat, datetime.now(timezone.utc), steps, step_sec, tle_override=tle_override)
-    return {"norad_id": norad_id, "name": sat.name, "path": path, "steps": steps, "source": source}
+    return {
+        "norad_id": norad_id,
+        "name": sat.name,
+        "path": path,
+        "steps": steps,
+        "source": meta["effective_source"],
+        "meta": meta,
+    }
 
 
 @app.get("/api/orbital-elements/{norad_id}")
@@ -179,7 +286,12 @@ async def get_elements(
     sat = get_satellite_by_id(norad_id)
     if not sat:
         raise HTTPException(status_code=404, detail="Satellite not found")
-    tle_override = await _get_tle_override(source)
+    if not is_operational(sat.status):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Satellite {norad_id} is archival ({sat.status}); elements unavailable",
+        )
+    tle_override, _meta = await _get_tle_override(source)
     return get_orbital_elements(sat, tle_override=tle_override)
 
 
@@ -204,8 +316,8 @@ async def get_links(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid timestamp format")
 
-    tle_override = await _get_tle_override(source)
-    positions = propagate_all(dt, tle_override=tle_override)
+    tle_override, meta = await _get_tle_override(source)
+    positions = _filter_operational(propagate_all(dt, tle_override=tle_override))
 
     def has_los(p1, p2):
         """Check line-of-sight (link does not intersect Earth)."""
@@ -241,12 +353,19 @@ async def get_links(
             })
 
     active_count = sum(1 for lnk in links if lnk["connected"])
+    blocked_by_earth = sum(1 for lnk in links if not lnk["los"])
+    in_range_no_los = sum(1 for lnk in links if lnk["distance_km"] <= comm_range_km and not lnk["los"])
     return {
         "links": links,
         "active_count": active_count,
         "total_pairs": len(links),
+        "satellites_count": len(positions),
+        "blocked_by_earth": blocked_by_earth,
+        "in_range_no_los": in_range_no_los,
         "comm_range_km": comm_range_km,
         "timestamp": (dt or datetime.now(timezone.utc)).isoformat(),
+        "source": meta["effective_source"],
+        "meta": meta,
     }
 
 
@@ -262,14 +381,15 @@ async def get_collisions(
     Returns pairs with minimum distance <= threshold_km over hours_ahead period.
     ?source=embedded|celestrak — TLE data source.
     """
-    tle_override = await _get_tle_override(source)
+    tle_override, meta = await _get_tle_override(source)
     approaches = predict_collisions(threshold_km, hours_ahead, tle_override=tle_override)
     return {
         "close_approaches": approaches,
         "count": len(approaches),
         "threshold_km": threshold_km,
         "hours_ahead": hours_ahead,
-        "source": source,
+        "source": meta["effective_source"],
+        "meta": meta,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
