@@ -60,6 +60,11 @@ export const translations = {
   'control.tleAgeSec': { ru: '{sec} сек назад', en: '{sec} sec ago' },
   'control.tleAgeMin': { ru: '{min} мин назад', en: '{min} min ago' },
   'control.tleNeverFetched': { ru: 'нет запроса к CelesTrak', en: 'no CelesTrak fetch yet' },
+  // Opaque error codes emitted by the backend (no stack-trace leakage)
+  'error.upstream_timeout': { ru: 'таймаут CelesTrak', en: 'CelesTrak timeout' },
+  'error.upstream_network_error': { ru: 'сетевая ошибка', en: 'network error' },
+  'error.upstream_unavailable': { ru: 'CelesTrak недоступен', en: 'CelesTrak unavailable' },
+  'error.upstream_empty_response': { ru: 'пустой ответ CelesTrak', en: 'empty CelesTrak response' },
   'control.circularOrbits': { ru: 'Круговые орбиты', en: 'Circular orbits' },
   'control.scPerPlane': { ru: 'КА/плоскость', en: 'S/C per plane' },
   'control.plane_one': { ru: 'плоскость', en: 'plane' },

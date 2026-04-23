@@ -12,6 +12,7 @@ import {
 } from './services/api';
 import { getSimTime } from './simClock';
 import { selectRealSatellites } from './selection';
+import { formatBackendError } from './errors';
 import type { BackendHealth } from './types';
 
 const HEALTH_POLL_MS = 20_000;
@@ -57,10 +58,10 @@ export default function App() {
       .then((res) => {
         setTleData(res.tle_data, res.meta);
         if (res.meta?.fallback) {
+          const reason = formatBackendError(res.meta.error, lang)
+            || (lang === 'en' ? 'CelesTrak unavailable' : 'CelesTrak недоступен');
           setUserError(
-            lang === 'en'
-              ? `TLE fallback: ${res.meta.error || 'CelesTrak unavailable'}`
-              : `TLE-запаска: ${res.meta.error || 'CelesTrak недоступен'}`,
+            lang === 'en' ? `TLE fallback: ${reason}` : `TLE-запаска: ${reason}`,
           );
         }
       })

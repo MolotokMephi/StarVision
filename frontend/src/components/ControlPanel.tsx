@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
 import { fetchTLE, refreshTLE, ApiError } from '../services/api';
+import { formatBackendError } from '../errors';
 import { CONSTELLATION_COLORS } from '../constants';
 
 const SPEED_PRESETS = [
@@ -43,7 +44,8 @@ export function ControlPanel() {
       const res = await fetchTLE(source);
       setTleData(res.tle_data, res.meta);
       if (res.meta?.fallback && res.meta?.error) {
-        const msg = t('control.tleFallbackWarn', lang);
+        const reason = formatBackendError(res.meta.error, lang);
+        const msg = `${t('control.tleFallbackWarn', lang)} (${reason})`;
         setTleError(msg);
         setUserError(msg);
       }
@@ -65,7 +67,8 @@ export function ControlPanel() {
       setTleData(res.tle_data, res.meta);
       setTleSource('celestrak');
       if (res.meta?.fallback && res.meta?.error) {
-        const msg = t('control.tleFallbackWarn', lang);
+        const reason = formatBackendError(res.meta.error, lang);
+        const msg = `${t('control.tleFallbackWarn', lang)} (${reason})`;
         setTleError(msg);
         setUserError(msg);
       }

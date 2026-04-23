@@ -33,10 +33,43 @@ _last_fetch_error: Optional[str] = None
 _last_fetch_attempt: float = 0.0
 
 
+# Sanitised error codes that are safe to return to external clients.
+# Full exception details (type, message, stack) stay in server logs and
+# are never embedded in API responses — CodeQL flags that as
+# py/stack-trace-exposure. Keep this list closed: anything not matching
+# falls through to the generic UPSTREAM_UNAVAILABLE code.
+ERR_TIMEOUT = "upstream_timeout"
+ERR_NETWORK = "upstream_network_error"
+ERR_UPSTREAM = "upstream_unavailable"
+ERR_EMPTY = "upstream_empty_response"
+
+
+def _classify_network_error(exc: BaseException) -> str:
+    """Map any Python exception to an opaque, client-safe error code.
+    The actual exception type / args are only logged server-side.
+    """
+    try:
+        import httpx  # local import to avoid hard dep at module load
+        if isinstance(exc, httpx.TimeoutException):
+            return ERR_TIMEOUT
+        if isinstance(exc, httpx.NetworkError):
+            return ERR_NETWORK
+        if isinstance(exc, httpx.HTTPError):
+            return ERR_UPSTREAM
+    except Exception:
+        pass
+    if isinstance(exc, asyncio.TimeoutError):
+        return ERR_TIMEOUT
+    return ERR_UPSTREAM
+
+
 def get_cache_status() -> Dict[str, object]:
     """Public snapshot of CelesTrak cache state. Used by API clients
     to display data freshness and surface network/parse failures instead
     of silently serving embedded data.
+
+    `last_fetch_error` is a sanitised code (see constants above); raw
+    exception details are not exposed.
     """
     now = time.time()
     age_sec: Optional[float] = (now - _cache_timestamp) if _cache_timestamp > 0 else None
@@ -195,9 +228,11 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                             for nid, tle in result.items():
                                 if nid in target_set:
                                     all_tle[nid] = tle
-        except Exception as e:
-            network_error = f"{type(e).__name__}: {e}"
-            logger.error("CelesTrak network error: %s", network_error)
+        except Exception:
+            # Full traceback goes to server logs only; clients see an
+            # opaque code via get_cache_status().
+            logger.exception("CelesTrak network error")
+            network_error = ERR_NETWORK
 
         # Update cache
         if all_tle:
@@ -218,7 +253,7 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
             return result
 
         _last_fetch_ok = False
-        _last_fetch_error = network_error or "CelesTrak returned no usable TLE"
+        _last_fetch_error = network_error or ERR_EMPTY
 
         # Network down — serve stale cache if available
         if _tle_cache:
@@ -240,8 +275,10 @@ async def _fetch_url(client: httpx.AsyncClient, url: str) -> Dict[int, Tuple[str
         if parsed:
             logger.debug("Fetched %d TLE entries from %s", len(parsed), url.split("?")[0])
         return parsed
-    except Exception as e:
-        logger.warning("CelesTrak fetch failed for %s: %s", url, e)
+    except Exception:
+        # Server-side only; the exception object is not returned or
+        # embedded in any value that could flow to a client.
+        logger.warning("CelesTrak fetch failed for %s", url, exc_info=True)
         return {}
 
 
@@ -269,10 +306,12 @@ async def get_tle_by_source(source: str = "embedded") -> Dict[str, object]:
     if source == "celestrak":
         try:
             live_tle = await fetch_celestrak_tle()
-        except Exception as e:
-            # Full failure — surface it, do not silently degrade.
-            err = f"{type(e).__name__}: {e}"
-            logger.error("CelesTrak fetch failed: %s", err)
+        except Exception as exc:
+            # Log the raw error server-side; expose an opaque code to
+            # the client so we never leak stack-trace / exception-type
+            # detail through the API (CodeQL: py/stack-trace-exposure).
+            logger.exception("CelesTrak fetch failed")
+            err = _classify_network_error(exc)
             tle_list = _get_embedded_tle_list(tag="embedded_fallback")
             cache_status = get_cache_status()
             return {

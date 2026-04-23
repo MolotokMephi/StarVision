@@ -81,8 +81,10 @@ async def _get_tle_override(source: str) -> tuple:
         }
     try:
         override = await fetch_celestrak_tle()
-    except Exception as e:
-        logging.getLogger(__name__).error("CelesTrak override failed: %s", e)
+    except Exception:
+        # Keep full traceback in the server log; don't leak it into
+        # any value that could flow back to a client.
+        logging.getLogger(__name__).exception("CelesTrak override failed")
         override = None
     status = get_cache_status()
     if not override:
@@ -90,7 +92,9 @@ async def _get_tle_override(source: str) -> tuple:
             "requested_source": "celestrak",
             "effective_source": "embedded_fallback",
             "fallback": True,
-            "error": status.get("last_fetch_error") or "CelesTrak unavailable",
+            # `last_fetch_error` is an opaque, client-safe code set by
+            # celestrak.fetch_celestrak_tle (ERR_TIMEOUT, ERR_NETWORK, …).
+            "error": status.get("last_fetch_error") or "upstream_unavailable",
             **status,
         }
     return override, {
