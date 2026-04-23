@@ -110,6 +110,50 @@ describe('useStore (Zustand)', () => {
       expect(useStore.getState().selectedSatellite).toBe(46493);
       expect(useStore.getState().cameraFollowing).toBe(true);
     });
+
+    it('blocks focus on archival satellite and surfaces an error', () => {
+      // Seed the catalog with an archival spacecraft
+      useStore.getState().setSatellites([
+        {
+          norad_id: 53385,
+          name: 'Геоскан-Эдельвейс',
+          constellation: 'Геоскан',
+          purpose: '',
+          mass_kg: 4,
+          form_factor: '3U',
+          launch_date: '2022-08-09',
+          status: 'deorbited',
+          operational: false,
+          archive_date: '2024-02-18',
+          description: '',
+        },
+      ]);
+      useStore.getState().setUserError(null);
+      useStore.getState().focusSatellite(53385);
+      expect(useStore.getState().focusedSatellite).toBeNull();
+      expect(useStore.getState().cameraFollowing).toBe(false);
+      expect(useStore.getState().userError).not.toBeNull();
+    });
+
+    it('blocks selecting an archival satellite', () => {
+      useStore.getState().setSatellites([
+        {
+          norad_id: 53385,
+          name: 'Геоскан-Эдельвейс',
+          constellation: 'Геоскан',
+          purpose: '',
+          mass_kg: 4,
+          form_factor: '3U',
+          launch_date: '2022-08-09',
+          status: 'deorbited',
+          operational: false,
+          archive_date: '2024-02-18',
+          description: '',
+        },
+      ]);
+      useStore.getState().selectSatellite(53385);
+      expect(useStore.getState().selectedSatellite).toBeNull();
+    });
   });
 
   describe('constellation toggling', () => {

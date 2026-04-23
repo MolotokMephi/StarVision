@@ -17,6 +17,18 @@ export const translations = {
   'header.isl': { ru: 'МСС', en: 'ISL' },
   'header.status': { ru: 'Статус', en: 'Status' },
   'header.online': { ru: 'ОНЛАЙН', en: 'ONLINE' },
+  'header.degraded': { ru: 'СНИЖЕН', en: 'DEGRADED' },
+  'header.offline': { ru: 'ОФФЛАЙН', en: 'OFFLINE' },
+  'header.checking': { ru: '…', en: '…' },
+  'header.source': { ru: 'Источник', en: 'Source' },
+  'header.sourceEmbedded': { ru: 'ДЕМО', en: 'DEMO' },
+  'header.sourceLive': { ru: 'LIVE', en: 'LIVE' },
+  'header.sourceFallback': { ru: 'ДЕМО-ЗАПАСКА', en: 'FALLBACK' },
+  'header.sourceMixed': { ru: 'СМЕШАННЫЙ', en: 'MIXED' },
+  'header.freshness': { ru: 'Свежесть', en: 'Freshness' },
+  'header.freshNow': { ru: 'новые', en: 'fresh' },
+  'header.freshAgo': { ru: '{age} назад', en: '{age} ago' },
+  'header.stale': { ru: 'УСТАРЕЛО', en: 'STALE' },
 
   // Control Panel
   'control.title': { ru: 'Управление', en: 'Controls' },
@@ -37,6 +49,22 @@ export const translations = {
   'control.tleCelestrak': { ru: 'CelesTrak', en: 'CelesTrak' },
   'control.tleRefresh': { ru: 'Обновить', en: 'Refresh' },
   'control.tleLoading': { ru: 'Загрузка...', en: 'Loading...' },
+  'control.tleError': {
+    ru: 'Не удалось загрузить TLE: {error}',
+    en: 'Could not load TLE: {error}',
+  },
+  'control.tleFallbackWarn': {
+    ru: 'CelesTrak недоступен — показываю встроенные TLE',
+    en: 'CelesTrak unavailable — showing embedded TLE',
+  },
+  'control.tleAgeSec': { ru: '{sec} сек назад', en: '{sec} sec ago' },
+  'control.tleAgeMin': { ru: '{min} мин назад', en: '{min} min ago' },
+  'control.tleNeverFetched': { ru: 'нет запроса к CelesTrak', en: 'no CelesTrak fetch yet' },
+  // Opaque error codes emitted by the backend (no stack-trace leakage)
+  'error.upstream_timeout': { ru: 'таймаут CelesTrak', en: 'CelesTrak timeout' },
+  'error.upstream_network_error': { ru: 'сетевая ошибка', en: 'network error' },
+  'error.upstream_unavailable': { ru: 'CelesTrak недоступен', en: 'CelesTrak unavailable' },
+  'error.upstream_empty_response': { ru: 'пустой ответ CelesTrak', en: 'empty CelesTrak response' },
   'control.circularOrbits': { ru: 'Круговые орбиты', en: 'Circular orbits' },
   'control.scPerPlane': { ru: 'КА/плоскость', en: 'S/C per plane' },
   'control.plane_one': { ru: 'плоскость', en: 'plane' },
@@ -46,6 +74,13 @@ export const translations = {
   // Satellite Info Panel
   'info.active': { ru: 'Активен', en: 'Active' },
   'info.inactive': { ru: 'Неактивен', en: 'Inactive' },
+  'info.archived': { ru: 'Архивный', en: 'Archived' },
+  'info.deorbited': { ru: 'Сведён с орбиты', en: 'Deorbited' },
+  'info.archiveDate': { ru: 'Дата снятия', en: 'Archive date' },
+  'info.archivalNoTelemetry': {
+    ru: 'Телеметрия недоступна: спутник снят с орбиты.',
+    en: 'Telemetry unavailable: spacecraft is archival.',
+  },
   'info.telemetry': { ru: 'Телеметрия', en: 'Telemetry' },
   'info.altitude': { ru: 'Высота', en: 'Altitude' },
   'info.velocity': { ru: 'Скорость', en: 'Velocity' },
@@ -75,6 +110,10 @@ export const translations = {
   'chat.error': {
     ru: 'Ошибка связи с сервером. Попробуйте позже.',
     en: 'Server connection error. Please try again later.',
+  },
+  'chat.invalidAction': {
+    ru: 'Отклонено действие: {reason}',
+    en: 'Rejected action: {reason}',
   },
   'chat.actionDone_one': { ru: 'действие выполнено', en: 'action executed' },
   'chat.actionDone_many': { ru: 'действий выполнено', en: 'actions executed' },
@@ -118,8 +157,10 @@ export function getInternalConstellationName(displayName: string, lang: Lang): s
   return displayName;
 }
 
-export function t(key: TranslationKey, lang: Lang): string {
-  return translations[key]?.[lang] ?? key;
+export function t(key: TranslationKey, lang: Lang, vars?: Record<string, string | number>): string {
+  const raw = translations[key]?.[lang] ?? key;
+  if (!vars) return raw;
+  return raw.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? `{${name}}`));
 }
 
 // Translate constellation internal name to display name

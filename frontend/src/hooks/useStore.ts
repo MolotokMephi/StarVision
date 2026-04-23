@@ -1,8 +1,16 @@
 import { create } from 'zustand';
-import type { AppState } from '../types';
+import type { AppState, BackendHealth } from '../types';
 import { CONSTELLATION_NAMES } from '../constants';
 
 let _highlightTimer: ReturnType<typeof setTimeout> | null = null;
+
+const INITIAL_HEALTH: BackendHealth = {
+  status: 'unknown',
+  reasons: [],
+  timestamp: null,
+  checked_at: 0,
+  error: null,
+};
 
 export const useStore = create<AppState>((set, get) => ({
   // Language
@@ -13,6 +21,9 @@ export const useStore = create<AppState>((set, get) => ({
   positions: [],
   orbitPaths: {},
   tleData: [],
+  tleMeta: null,
+  health: INITIAL_HEALTH,
+  userError: null,
 
   // Controls
   timeSpeed: 1,
@@ -38,17 +49,45 @@ export const useStore = create<AppState>((set, get) => ({
   chatLoading: false,
 
   // Actions
+  setHealth: (h) => set({ health: h }),
+  setUserError: (err) => set({ userError: err }),
   setLang: (lang) => set({ lang }),
   setTimeSpeed: (speed) => set({ timeSpeed: speed }),
   setShowOrbits: (show) => set({ showOrbits: show }),
   setShowLabels: (show) => set({ showLabels: show }),
   setShowCoverage: (show) => set({ showCoverage: show }),
   setShowLinks: (show) => set({ showLinks: show }),
-  selectSatellite: (id) => set(id === null
-    ? { selectedSatellite: null, focusedSatellite: null, cameraFollowing: false }
-    : { selectedSatellite: id }
-  ),
-  focusSatellite: (id) => set({ focusedSatellite: id, selectedSatellite: id, cameraFollowing: true }),
+  selectSatellite: (id) => {
+    if (id === null) {
+      set({ selectedSatellite: null, focusedSatellite: null, cameraFollowing: false });
+      return;
+    }
+    // Block selecting archival satellites in the 3D scene — their TLE is
+    // stale, SGP4 won't give meaningful coordinates, and the camera has
+    // nothing to track. The catalog search/info panel can still open
+    // them via a dedicated path (not this one).
+    const sat = get().satellites.find((s) => s.norad_id === id);
+    if (sat && sat.operational === false) return;
+    set({ selectedSatellite: id });
+  },
+  focusSatellite: (id) => {
+    if (id === null) {
+      set({ selectedSatellite: null, focusedSatellite: null, cameraFollowing: false });
+      return;
+    }
+    const sat = get().satellites.find((s) => s.norad_id === id);
+    if (sat && sat.operational === false) {
+      // Surface a visible error instead of silently doing nothing.
+      set({
+        userError:
+          get().lang === 'en'
+            ? `Cannot focus: ${sat.name} is archival (${sat.status})`
+            : `Нельзя навести камеру: ${sat.name} — архивный (${sat.status})`,
+      });
+      return;
+    }
+    set({ focusedSatellite: id, selectedSatellite: id, cameraFollowing: true });
+  },
   setCameraFollowing: (following) => set({ cameraFollowing: following }),
   highlightConstellation: (name) => {
     set({ highlightedConstellation: name });
@@ -91,7 +130,7 @@ export const useStore = create<AppState>((set, get) => ({
   setPositions: (pos) => set({ positions: pos }),
   setOrbitPath: (id, path) =>
     set((state) => ({ orbitPaths: { ...state.orbitPaths, [id]: path } })),
-  setTleData: (data) => set({ tleData: data }),
+  setTleData: (data, meta) => set({ tleData: data, tleMeta: meta }),
   resetView: () =>
     set({
       selectedSatellite: null,
