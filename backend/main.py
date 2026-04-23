@@ -15,11 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from satellites import (
-    get_all_satellites, get_satellite_by_id, get_tle_data,
+    get_all_satellites, get_satellite_by_id,
     is_operational,
 )
 from orbital import (
-    propagate_all, propagate_satellite, propagate_orbit_path,
+    propagate_all, propagate_orbit_path,
     get_orbital_elements, predict_collisions, optimize_plane_distribution,
 )
 from ai_assistant import ask_starai
@@ -237,8 +237,8 @@ async def get_positions(
     if timestamp:
         try:
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid timestamp format")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid timestamp format") from exc
     tle_override, meta = await _get_tle_override(source)
     positions = _filter_operational(propagate_all(dt, tle_override=tle_override))
     return {
@@ -317,8 +317,8 @@ async def get_links(
     if timestamp:
         try:
             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid timestamp format")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid timestamp format") from exc
 
     tle_override, meta = await _get_tle_override(source)
     positions = _filter_operational(propagate_all(dt, tle_override=tle_override))

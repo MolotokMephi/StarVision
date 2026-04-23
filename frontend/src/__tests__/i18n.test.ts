@@ -11,14 +11,14 @@ import type { Lang, TranslationKey } from '../i18n';
 describe('i18n', () => {
   describe('translations object', () => {
     it('every key has both ru and en', () => {
-      for (const [key, value] of Object.entries(translations)) {
+      for (const value of Object.values(translations)) {
         expect(value).toHaveProperty('ru', expect.any(String));
         expect(value).toHaveProperty('en', expect.any(String));
       }
     });
 
     it('no empty translations', () => {
-      for (const [key, value] of Object.entries(translations)) {
+      for (const value of Object.values(translations)) {
         expect(value.ru.length).toBeGreaterThan(0);
         expect(value.en.length).toBeGreaterThan(0);
       }

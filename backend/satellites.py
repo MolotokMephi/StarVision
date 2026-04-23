@@ -4,7 +4,7 @@ Real satellites with valid TLE data (synthetic epochs, realistic orbital paramet
 In production — load current TLE from CelesTrak / SpaceTrack.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional
 
 @dataclass

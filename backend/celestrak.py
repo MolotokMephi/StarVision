@@ -48,16 +48,12 @@ def _classify_network_error(exc: BaseException) -> str:
     """Map any Python exception to an opaque, client-safe error code.
     The actual exception type / args are only logged server-side.
     """
-    try:
-        import httpx  # local import to avoid hard dep at module load
-        if isinstance(exc, httpx.TimeoutException):
-            return ERR_TIMEOUT
-        if isinstance(exc, httpx.NetworkError):
-            return ERR_NETWORK
-        if isinstance(exc, httpx.HTTPError):
-            return ERR_UPSTREAM
-    except Exception:
-        pass
+    if isinstance(exc, httpx.TimeoutException):
+        return ERR_TIMEOUT
+    if isinstance(exc, httpx.NetworkError):
+        return ERR_NETWORK
+    if isinstance(exc, httpx.HTTPError):
+        return ERR_UPSTREAM
     if isinstance(exc, asyncio.TimeoutError):
         return ERR_TIMEOUT
     return ERR_UPSTREAM

@@ -226,7 +226,7 @@ export function StarAIChat() {
           }),
         );
       }
-    } catch (err) {
+    } catch {
       addChatMessage({
         role: 'assistant',
         content: t('chat.error', lang),

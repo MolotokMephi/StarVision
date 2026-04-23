@@ -8,7 +8,7 @@ from orbital import (
     propagate_satellite, propagate_all, propagate_orbit_path,
     predict_collisions, optimize_plane_distribution,
     get_orbital_elements, eci_to_geodetic,
-    EARTH_RADIUS_KM, MU,
+    EARTH_RADIUS_KM,
 )
 
 

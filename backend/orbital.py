@@ -6,8 +6,7 @@ import math
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Tuple
 
-from sgp4.api import Satrec, WGS72
-from sgp4.api import jday
+from sgp4.api import Satrec, WGS72, jday
 
 from satellites import RUSSIAN_CUBESATS, SatelliteInfo, is_operational
 
