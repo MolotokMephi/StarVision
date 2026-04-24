@@ -4,17 +4,30 @@ import { ControlPanel } from './components/ControlPanel';
 import { SatelliteInfoPanel } from './components/SatelliteInfoPanel';
 import { StarAIChat } from './components/StarAIChat';
 import { Header } from './components/Header';
+import { ErrorToast } from './components/ErrorToast';
+import { EventLog } from './components/EventLog';
+import { MissionDashboard } from './components/MissionDashboard';
+import { CollisionPanel } from './components/CollisionPanel';
+import { OptimizerPanel } from './components/OptimizerPanel';
 import { useStore } from './hooks/useStore';
-import { fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE } from './services/api';
+import {
+  fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE, fetchHealth, ApiError,
+} from './services/api';
 import { getSimTime } from './simClock';
 import { CONSTELLATION_NAMES } from './constants';
+import { t } from './i18n';
 
 export default function App() {
   const {
+    lang,
     satellites, setSatellites,
     positions, setPositions,
     orbitPaths, setOrbitPath,
     tleData, setTleData,
+    setTleMeta,
+    setBackendHealth,
+    pushToast,
+    logEvent,
     timeSpeed,
     selectedSatellite,
     activeLinksCount,
@@ -22,7 +35,11 @@ export default function App() {
     orbitAltitudeKm,
     activeConstellations,
     tleSource,
+    backendReachable,
   } = useStore();
+
+  const reachableRef = useRef(backendReachable);
+  reachableRef.current = backendReachable;
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -30,27 +47,84 @@ export default function App() {
   useEffect(() => {
     fetchSatellites()
       .then((res) => setSatellites(res.satellites))
-      .catch(console.error);
-  }, []);
+      .catch((err) => {
+        const detail = err instanceof ApiError ? err.detail : String(err);
+        pushToast({ level: 'error', title: t('event.apiError', lang), detail });
+        logEvent({ level: 'error', kind: 'api_error', message: 'fetchSatellites failed', details: detail });
+      });
+  }, [setSatellites, pushToast, logEvent, lang]);
 
   // Load TLE for client-side SGP4
   useEffect(() => {
     fetchTLE()
-      .then((res) => setTleData(res.tle_data))
-      .catch(console.error);
+      .then((res) => {
+        setTleData(res.tle_data);
+        setTleMeta(res.meta);
+        if (res.meta.effective_source === 'embedded_fallback') {
+          pushToast({
+            level: 'warning',
+            title: t('event.tleFallback', lang),
+            detail: `${res.meta.total} embedded`,
+          });
+          logEvent({ level: 'warning', kind: 'tle_fallback', message: t('event.tleFallback', lang) });
+        } else {
+          logEvent({
+            level: 'info',
+            kind: 'tle_loaded',
+            message: `${t('event.tleLoaded', lang)}: ${res.meta.effective_source}`,
+            details: `${res.meta.total} TLE`,
+          });
+        }
+      })
+      .catch((err) => {
+        const detail = err instanceof ApiError ? err.detail : String(err);
+        pushToast({ level: 'error', title: t('event.apiError', lang), detail });
+        logEvent({ level: 'error', kind: 'api_error', message: 'fetchTLE failed', details: detail });
+      });
+    // deliberately run once on mount; locale changes don't require refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load positions (periodic — fallback for info panel)
-  // Use simulated time to stay in sync with the 3D scene
+  // Health polling — lightweight, kicks the status indicator.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const h = await fetchHealth();
+        if (cancelled) return;
+        setBackendHealth(h, true);
+        if (!reachableRef.current) {
+          logEvent({ level: 'success', kind: 'health_restored', message: t('event.healthRestored', lang) });
+          pushToast({ level: 'success', title: t('event.healthRestored', lang) });
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setBackendHealth(null, false);
+        if (reachableRef.current) {
+          const detail = err instanceof ApiError ? err.detail : String(err);
+          logEvent({ level: 'error', kind: 'health_degraded', message: t('event.healthDegraded', lang), details: detail });
+          pushToast({ level: 'error', title: t('event.healthDegraded', lang), detail });
+        }
+      }
+    };
+    tick();
+    const id = setInterval(tick, 20000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [setBackendHealth, pushToast, logEvent, lang]);
+
+  // Load positions (periodic — fallback for info panel).
+  // Use simulated time to stay in sync with the 3D scene.
   const loadPositions = useCallback(async () => {
     try {
       const simTimestamp = new Date(getSimTime()).toISOString();
       const res = await fetchPositions(simTimestamp, tleSource);
       setPositions(res.positions);
     } catch (err) {
-      console.error('Position fetch error:', err);
+      // Don't spam toasts on every tick — just log. Health polling surfaces
+      // actual backend outages with a single banner.
+      if (!(err instanceof ApiError)) return;
     }
-  }, [tleSource]);
+  }, [tleSource, setPositions]);
 
   useEffect(() => {
     loadPositions();
@@ -63,17 +137,23 @@ export default function App() {
     };
   }, [timeSpeed, loadPositions]);
 
-  // Load orbit when a satellite is selected (skip virtual NORAD 90000+)
+  // Load orbit when a satellite is selected (skip virtual NORAD 90000+).
+  // Archival satellites return 409 from the backend — swallow that silently
+  // (the UI already marks them as archival; a toast would be noise).
   useEffect(() => {
     if (selectedSatellite && selectedSatellite < 90000 && !orbitPaths[selectedSatellite]) {
       fetchOrbitPath(selectedSatellite, 180, 60, tleSource)
         .then((res) => setOrbitPath(res.norad_id, res.path))
-        .catch(console.error);
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 409) return;
+          const detail = err instanceof ApiError ? err.detail : String(err);
+          logEvent({ level: 'warning', kind: 'api_error', message: 'orbit fetch failed', details: detail });
+        });
     }
-  }, [selectedSatellite, tleSource]);
+  }, [selectedSatellite, tleSource, orbitPaths, setOrbitPath, logEvent]);
 
-  // Preload orbits for all satellites (batches of 4 to reduce load)
-  // Re-fetches when TLE source changes to get correct orbit paths
+  // Preload orbits for all satellites (batches of 4 to reduce load).
+  // Re-fetches when TLE source changes so tracks stay consistent with live data.
   useEffect(() => {
     if (satellites.length === 0) return;
     let cancelled = false;
@@ -83,16 +163,24 @@ export default function App() {
         if (cancelled) return;
         const batch = satellites.slice(i, i + batchSize);
         await Promise.allSettled(
-          batch.map((sat) =>
-            fetchOrbitPath(sat.norad_id, 120, 60, tleSource)
-              .then((res) => setOrbitPath(res.norad_id, res.path))
-          )
+          batch
+            // Skip archival — backend returns 409 for those.
+            .filter((sat) => sat.status !== 'deorbited')
+            .map((sat) =>
+              fetchOrbitPath(sat.norad_id, 120, 60, tleSource)
+                .then((res) => setOrbitPath(res.norad_id, res.path))
+                .catch((err) => {
+                  if (err instanceof ApiError && err.status === 409) return;
+                  // Don't toast for each failed orbit; log only.
+                  logEvent({ level: 'warning', kind: 'api_error', message: `orbit ${sat.norad_id} failed` });
+                })
+            )
         );
       }
     };
     loadBatched();
     return () => { cancelled = true; };
-  }, [satellites, tleSource]);
+  }, [satellites, tleSource, setOrbitPath, logEvent]);
 
   // Map norad_id → constellation
   const satelliteConstellations = useMemo(() => {
@@ -154,8 +242,20 @@ export default function App() {
       {/* UI Panels */}
       <ControlPanel />
       <SatelliteInfoPanel satellites={satellites} positions={positions} />
-      <StarAIChat />
 
+      {/* Engineering panels — docked on the right, above the StarAI chat button */}
+      <div className="absolute bottom-24 right-4 z-10 flex flex-col gap-2 items-end pointer-events-none">
+        <MissionDashboard
+          displayedCount={displayedCount}
+          activeCount={activeCount}
+        />
+        <CollisionPanel />
+        <OptimizerPanel />
+        <EventLog />
+      </div>
+
+      <StarAIChat />
+      <ErrorToast />
     </div>
   );
 }

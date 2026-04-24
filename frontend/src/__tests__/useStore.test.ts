@@ -57,9 +57,25 @@ describe('useStore (Zustand)', () => {
       expect(useStore.getState().satelliteCount).toBe(7);
     });
 
+    it('clamps satellite count to [3, 15]', () => {
+      useStore.getState().setSatelliteCount(2);
+      expect(useStore.getState().satelliteCount).toBe(3);
+      useStore.getState().setSatelliteCount(99);
+      expect(useStore.getState().satelliteCount).toBe(15);
+      useStore.getState().setSatelliteCount(-5);
+      expect(useStore.getState().satelliteCount).toBe(3);
+    });
+
     it('sets comm range', () => {
       useStore.getState().setCommRangeKm(500);
       expect(useStore.getState().commRangeKm).toBe(500);
+    });
+
+    it('clamps comm range to [50, 2000]', () => {
+      useStore.getState().setCommRangeKm(10);
+      expect(useStore.getState().commRangeKm).toBe(50);
+      useStore.getState().setCommRangeKm(99999);
+      expect(useStore.getState().commRangeKm).toBe(2000);
     });
 
     it('sets orbit altitude', () => {
@@ -67,14 +83,37 @@ describe('useStore (Zustand)', () => {
       expect(useStore.getState().orbitAltitudeKm).toBe(800);
     });
 
+    it('clamps orbit altitude — 0 stays 0 (real TLE mode), positives into [400, 2000]', () => {
+      useStore.getState().setOrbitAltitudeKm(0);
+      expect(useStore.getState().orbitAltitudeKm).toBe(0);
+      useStore.getState().setOrbitAltitudeKm(100);
+      expect(useStore.getState().orbitAltitudeKm).toBe(400);
+      useStore.getState().setOrbitAltitudeKm(5000);
+      expect(useStore.getState().orbitAltitudeKm).toBe(2000);
+    });
+
     it('sets time speed', () => {
       useStore.getState().setTimeSpeed(100);
       expect(useStore.getState().timeSpeed).toBe(100);
     });
 
+    it('clamps time speed to [1, 200]', () => {
+      useStore.getState().setTimeSpeed(0);
+      expect(useStore.getState().timeSpeed).toBe(1);
+      useStore.getState().setTimeSpeed(999);
+      expect(useStore.getState().timeSpeed).toBe(200);
+    });
+
     it('sets orbital planes', () => {
       useStore.getState().setOrbitalPlanes(5);
       expect(useStore.getState().orbitalPlanes).toBe(5);
+    });
+
+    it('clamps orbital planes to [1, 7]', () => {
+      useStore.getState().setOrbitalPlanes(0);
+      expect(useStore.getState().orbitalPlanes).toBe(1);
+      useStore.getState().setOrbitalPlanes(99);
+      expect(useStore.getState().orbitalPlanes).toBe(7);
     });
 
     it('toggles show flags', () => {

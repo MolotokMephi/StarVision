@@ -14,7 +14,11 @@ interface SatelliteInfoPanelProps {
 }
 
 export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanelProps) {
-  const { lang, selectedSatellite, selectSatellite, focusSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount, timeSpeed } = useStore();
+  const {
+    lang, selectedSatellite, selectSatellite, focusSatellite,
+    orbitAltitudeKm, orbitalPlanes, satelliteCount, timeSpeed,
+    tleData, tleMeta,
+  } = useStore();
 
   const isVirtual = selectedSatellite !== null && selectedSatellite >= 90000;
 
@@ -139,7 +143,7 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
       </div>
 
       {/* Status */}
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span
           className={`inline-block w-2 h-2 rounded-full ${
             satData.status === 'active' ? 'bg-green-400' : 'bg-red-400'
@@ -155,6 +159,31 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
             <span className="text-xs text-star-600 font-mono">|</span>
             <span className="text-xs text-star-400 font-mono">{satData.mass_kg} {kg}</span>
           </>
+        )}
+      </div>
+
+      {/* Mode / source badge — make it unambiguous whether this is a Real TLE
+          satellite or a Virtual Walker slot, so jury and users don't conflate
+          real telemetry with synthetic positions. */}
+      <div className="mb-3">
+        {isVirtual ? (
+          <span className="inline-block text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300">
+            {t('mode.virtual', lang)}
+          </span>
+        ) : (
+          <span
+            className="inline-block text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-green-500/30 bg-green-500/10 text-green-300"
+            title={tleMeta ? `${tleMeta.effective_source} · ${tleMeta.fetched_at}` : undefined}
+          >
+            {t('mode.realTle', lang)} ·{' '}
+            {(() => {
+              const entry = tleData.find((x) => x.norad_id === satData.norad_id);
+              const s = entry?.source ?? tleMeta?.effective_source ?? 'embedded';
+              if (s === 'celestrak') return 'CelesTrak';
+              if (s === 'embedded_fallback') return 'fallback';
+              return 'embedded';
+            })()}
+          </span>
         )}
       </div>
 

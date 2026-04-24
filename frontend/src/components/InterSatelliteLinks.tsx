@@ -217,6 +217,7 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
         prevLinksRef.current = 0;
         setActiveLinksCount(0);
       }
+      activeLineCountRef.current = 0;
       linkMetaRef.current = [];
       if (hoveredIdxRef.current !== -1) {
         hoveredIdxRef.current = -1;
@@ -262,7 +263,19 @@ export function InterSatelliteLinks({ tleData, satelliteConstellations }: InterS
     }
 
     if (eciPositions.length < 2) {
+      // Not enough visible satellites to form any ISL. Reset all derived state so the
+      // header counter, tooltip and raycast don't linger on stale values after the user
+      // filters constellations, loses TLE data, or collapses count to <2.
+      if (prevLinksRef.current !== 0) {
+        prevLinksRef.current = 0;
+        setActiveLinksCount(0);
+      }
+      activeLineCountRef.current = 0;
       linkMetaRef.current = [];
+      if (hoveredIdxRef.current !== -1) {
+        hoveredIdxRef.current = -1;
+        setTooltip(null);
+      }
       return;
     }
 

@@ -1,8 +1,20 @@
 import { create } from 'zustand';
-import type { AppState } from '../types';
+import type { AppState, AppEvent, AppToast } from '../types';
 import { CONSTELLATION_NAMES } from '../constants';
+import {
+  clampSatelliteCount,
+  clampTimeSpeed,
+  clampCommRangeKm,
+  clampOrbitAltitudeKm,
+  clampOrbitalPlanes,
+} from '../lib/clamps';
 
 let _highlightTimer: ReturnType<typeof setTimeout> | null = null;
+
+const MAX_EVENTS = 80;
+const MAX_TOASTS = 4;
+let _idCounter = 0;
+const nextId = (prefix: string) => `${prefix}_${++_idCounter}_${Date.now()}`;
 
 export const useStore = create<AppState>((set, get) => ({
   // Language
@@ -32,6 +44,16 @@ export const useStore = create<AppState>((set, get) => ({
   activeLinksCount: 0,
   orbitalPlanes: 3,
 
+  // Trust / freshness
+  tleMeta: null,
+  backendHealth: null,
+  backendReachable: true,
+  lastHealthCheckAt: null,
+
+  // Events & toasts
+  events: [],
+  toasts: [],
+
   // Chat
   chatOpen: false,
   chatMessages: [],
@@ -39,7 +61,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Actions
   setLang: (lang) => set({ lang }),
-  setTimeSpeed: (speed) => set({ timeSpeed: speed }),
+  setTimeSpeed: (speed) => set({ timeSpeed: clampTimeSpeed(speed) }),
   setShowOrbits: (show) => set({ showOrbits: show }),
   setShowLabels: (show) => set({ showLabels: show }),
   setShowCoverage: (show) => set({ showCoverage: show }),
@@ -73,12 +95,13 @@ export const useStore = create<AppState>((set, get) => ({
         ? state.activeConstellations.filter((c) => c !== name)
         : [...state.activeConstellations, name],
     })),
-  setSatelliteCount: (count) => set({ satelliteCount: count }),
+  setSatelliteCount: (count) => set({ satelliteCount: clampSatelliteCount(count) }),
   setTleSource: (source) => set({ tleSource: source }),
-  setOrbitAltitudeKm: (km) => set({ orbitAltitudeKm: km }),
-  setCommRangeKm: (km) => set({ commRangeKm: km }),
-  setActiveLinksCount: (count) => set({ activeLinksCount: count }),
-  setOrbitalPlanes: (planes) => set({ orbitalPlanes: planes }),
+  setOrbitAltitudeKm: (km) => set({ orbitAltitudeKm: clampOrbitAltitudeKm(km) }),
+  setCommRangeKm: (km) => set({ commRangeKm: clampCommRangeKm(km) }),
+  setActiveLinksCount: (count) =>
+    set({ activeLinksCount: Math.max(0, Math.floor(count) || 0) }),
+  setOrbitalPlanes: (planes) => set({ orbitalPlanes: clampOrbitalPlanes(planes) }),
   setChatOpen: (open) => set({ chatOpen: open }),
   addChatMessage: (msg) =>
     set((state) => {
@@ -92,6 +115,32 @@ export const useStore = create<AppState>((set, get) => ({
   setOrbitPath: (id, path) =>
     set((state) => ({ orbitPaths: { ...state.orbitPaths, [id]: path } })),
   setTleData: (data) => set({ tleData: data }),
+  setTleMeta: (meta) => set({ tleMeta: meta }),
+  setBackendHealth: (health, reachable) =>
+    set({ backendHealth: health, backendReachable: reachable, lastHealthCheckAt: Date.now() }),
+  logEvent: (event) =>
+    set((state) => {
+      const next: AppEvent = {
+        ...event,
+        id: nextId('evt'),
+        timestamp: Date.now(),
+      };
+      const events = [next, ...state.events];
+      return { events: events.length > MAX_EVENTS ? events.slice(0, MAX_EVENTS) : events };
+    }),
+  clearEvents: () => set({ events: [] }),
+  pushToast: (toast) =>
+    set((state) => {
+      const next: AppToast = {
+        ...toast,
+        id: nextId('toast'),
+        createdAt: Date.now(),
+      };
+      const toasts = [next, ...state.toasts];
+      return { toasts: toasts.length > MAX_TOASTS ? toasts.slice(0, MAX_TOASTS) : toasts };
+    }),
+  dismissToast: (id) =>
+    set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
   resetView: () =>
     set({
       selectedSatellite: null,

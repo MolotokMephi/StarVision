@@ -18,6 +18,52 @@ export interface TLEData {
   constellation: string;
   tle_line1: string;
   tle_line2: string;
+  source?: 'celestrak' | 'embedded' | 'embedded_fallback' | string;
+}
+
+export type EffectiveTleSource =
+  | 'embedded'
+  | 'celestrak'
+  | 'celestrak_partial'
+  | 'embedded_fallback';
+
+export interface TleResponseMeta {
+  requested_source: 'embedded' | 'celestrak';
+  effective_source: EffectiveTleSource;
+  operational_only: boolean;
+  fetched_at: string;
+  cache_age_sec: number | null;
+  network_error: boolean;
+  fallback_count: number;
+  live_count: number;
+  total: number;
+}
+
+export interface APITleResponse {
+  tle_data: TLEData[];
+  source: 'embedded' | 'celestrak';
+  meta: TleResponseMeta;
+  refreshed?: boolean;
+}
+
+export interface HealthCatalog {
+  total: number;
+  operational: number;
+  archival: number;
+}
+
+export interface HealthCelestrakCache {
+  warm: boolean;
+  age_sec: number | null;
+  entries: number;
+}
+
+export interface APIHealthResponse {
+  status: 'ok' | string;
+  version: string;
+  time: string;
+  catalog: HealthCatalog;
+  celestrak_cache: HealthCelestrakCache;
 }
 
 export interface SatellitePosition {
@@ -69,6 +115,16 @@ export interface AppState {
   activeLinksCount: number;  // current number of active ISL
   orbitalPlanes: number;     // number of orbital planes (1–7)
 
+  // Data-trust metadata
+  tleMeta: TleResponseMeta | null;
+  backendHealth: APIHealthResponse | null;
+  backendReachable: boolean;
+  lastHealthCheckAt: number | null;
+
+  // Event log / notifications
+  events: AppEvent[];
+  toasts: AppToast[];
+
   // StarAI
   chatOpen: boolean;
   chatMessages: ChatMessage[];
@@ -95,11 +151,50 @@ export interface AppState {
   setChatOpen: (open: boolean) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatLoading: (loading: boolean) => void;
+  setTleMeta: (meta: TleResponseMeta | null) => void;
+  setBackendHealth: (health: APIHealthResponse | null, reachable: boolean) => void;
+  logEvent: (event: Omit<AppEvent, 'id' | 'timestamp'>) => void;
+  clearEvents: () => void;
+  pushToast: (toast: Omit<AppToast, 'id' | 'createdAt'>) => void;
+  dismissToast: (id: string) => void;
   setSatellites: (sats: SatelliteData[]) => void;
   setPositions: (pos: SatellitePosition[]) => void;
   setOrbitPath: (id: number, path: OrbitPoint[]) => void;
   setTleData: (data: TLEData[]) => void;
   resetView: () => void;
+}
+
+// ── Events & toasts ────────────────────────────────────────────────
+export type EventLevel = 'info' | 'success' | 'warning' | 'error';
+export type EventKind =
+  | 'tle_loaded'
+  | 'tle_fallback'
+  | 'tle_source_switched'
+  | 'tle_refresh'
+  | 'starai_action'
+  | 'starai_error'
+  | 'health_degraded'
+  | 'health_restored'
+  | 'collision_forecast'
+  | 'optimizer_apply'
+  | 'api_error';
+
+export interface AppEvent {
+  id: string;
+  timestamp: number;
+  level: EventLevel;
+  kind: EventKind;
+  message: string;
+  details?: string;
+}
+
+export interface AppToast {
+  id: string;
+  createdAt: number;
+  level: EventLevel;
+  title: string;
+  detail?: string;
+  ttlMs?: number;
 }
 
 // ── Chat ────────────────────────────────────────────────────────────
@@ -121,6 +216,7 @@ export interface StarAIAction {
 export interface APIPositionsResponse {
   positions: SatellitePosition[];
   timestamp: string;
+  source?: string;
 }
 
 export interface APISatellitesResponse {
@@ -133,9 +229,50 @@ export interface APIOrbitResponse {
   name: string;
   path: OrbitPoint[];
   steps: number;
+  source?: string;
 }
 
 export interface APIChatResponse {
   message: string;
   actions: StarAIAction[];
+}
+
+export interface CollisionApproach {
+  norad_id_1: number;
+  name_1: string;
+  norad_id_2: number;
+  name_2: string;
+  min_distance_km: number;
+  time_of_closest_approach: string;
+  risk_level: 'critical' | 'warning' | 'safe' | string;
+}
+
+export interface APICollisionsResponse {
+  close_approaches: CollisionApproach[];
+  count: number;
+  threshold_km: number;
+  hours_ahead: number;
+  source: string;
+  timestamp: string;
+}
+
+export interface OptimizerPlane {
+  plane_index: number;
+  raan_deg: number;
+  satellites_count: number;
+  satellites: Array<{ index: number; mean_anomaly_deg: number }>;
+}
+
+export interface APIOptimizerResponse {
+  walker_notation: string;
+  total_satellites: number;
+  num_planes: number;
+  sats_per_plane: number;
+  phase_factor: number;
+  altitude_km: number;
+  inclination_deg: number;
+  orbital_period_min: number;
+  velocity_km_s: number;
+  planes: OptimizerPlane[];
+  coverage_note: string;
 }

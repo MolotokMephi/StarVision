@@ -88,6 +88,72 @@ export const translations = {
   // ISL tooltip
   'isl.distance': { ru: 'км', en: 'km' },
 
+  // Header status
+  'header.source': { ru: 'Источник', en: 'Source' },
+  'header.fresh': { ru: 'Свежесть', en: 'Freshness' },
+  'header.offline': { ru: 'ОФЛАЙН', en: 'OFFLINE' },
+  'header.degraded': { ru: 'FALLBACK', en: 'FALLBACK' },
+  'header.sourceEmbedded': { ru: 'ВСТРОЕННЫЕ', en: 'EMBEDDED' },
+  'header.sourceCelestrak': { ru: 'CELESTRAK', en: 'CELESTRAK' },
+  'header.sourceFallback': { ru: 'FALLBACK', en: 'FALLBACK' },
+  'header.sourcePartial': { ru: 'ЧАСТ. LIVE', en: 'PARTIAL' },
+  'header.freshJustNow': { ru: 'только что', en: 'just now' },
+  'header.freshMinutes': { ru: 'мин назад', en: 'min ago' },
+  'header.freshHours': { ru: 'ч назад', en: 'h ago' },
+
+  // Events / toasts
+  'events.title': { ru: 'Журнал', en: 'Event log' },
+  'events.empty': { ru: 'Событий пока нет', en: 'No events yet' },
+  'events.clear': { ru: 'Очистить', en: 'Clear' },
+  'event.tleLoaded': { ru: 'TLE загружены', en: 'TLE loaded' },
+  'event.tleFallback': {
+    ru: 'CelesTrak недоступен — используется встроенный каталог',
+    en: 'CelesTrak unavailable — using embedded catalog',
+  },
+  'event.tlePartial': {
+    ru: 'CelesTrak частично недоступен — часть КА используют встроенные TLE',
+    en: 'CelesTrak partial — some S/C use embedded TLE',
+  },
+  'event.tleRefreshed': { ru: 'Кэш TLE обновлён', en: 'TLE cache refreshed' },
+  'event.starAIError': { ru: 'Ошибка StarAI', en: 'StarAI error' },
+  'event.apiError': { ru: 'Ошибка API', en: 'API error' },
+  'event.healthDegraded': { ru: 'Бэкенд недоступен', en: 'Backend unreachable' },
+  'event.healthRestored': { ru: 'Бэкенд восстановлен', en: 'Backend restored' },
+  'event.collisionForecast': { ru: 'Прогноз сближений', en: 'Collision forecast' },
+  'event.optimizerApply': { ru: 'Применена конфигурация Walker', en: 'Walker config applied' },
+
+  // Mode indicator
+  'mode.realTle': { ru: 'Реальные TLE', en: 'Real TLE' },
+  'mode.virtual': { ru: 'Виртуальная орбита', en: 'Virtual orbit' },
+
+  // Collision / optimizer / dashboard
+  'dashboard.title': { ru: 'Mission Dashboard', en: 'Mission Dashboard' },
+  'dashboard.operational': { ru: 'Активные', en: 'Operational' },
+  'dashboard.archival': { ru: 'Архивные', en: 'Archival' },
+  'dashboard.visible': { ru: 'Видимые', en: 'Visible' },
+  'dashboard.activeIsl': { ru: 'Активные МСС', en: 'Active ISL' },
+  'dashboard.commRange': { ru: 'Дальность', en: 'Comm range' },
+  'dashboard.mode': { ru: 'Режим', en: 'Mode' },
+  'dashboard.source': { ru: 'Источник', en: 'Source' },
+  'dashboard.collisions': { ru: 'Сближения', en: 'Close approaches' },
+  'collision.title': { ru: 'Прогноз сближений', en: 'Collision forecast' },
+  'collision.threshold': { ru: 'Порог (км)', en: 'Threshold (km)' },
+  'collision.horizon': { ru: 'Горизонт (ч)', en: 'Horizon (h)' },
+  'collision.run': { ru: 'Рассчитать', en: 'Run forecast' },
+  'collision.running': { ru: 'Считаю...', en: 'Computing...' },
+  'collision.none': { ru: 'Опасных сближений не найдено', en: 'No risky approaches found' },
+  'collision.minDist': { ru: 'Мин. расст.', en: 'Min dist' },
+  'collision.tca': { ru: 'Время', en: 'Time' },
+  'optimizer.title': { ru: 'Оптимизатор Walker', en: 'Walker optimizer' },
+  'optimizer.run': { ru: 'Рассчитать', en: 'Compute' },
+  'optimizer.apply': { ru: 'Применить к виртуальному режиму', en: 'Apply to virtual mode' },
+  'optimizer.altitude': { ru: 'Высота (км)', en: 'Altitude (km)' },
+  'optimizer.inclination': { ru: 'Наклонение (°)', en: 'Inclination (°)' },
+  'optimizer.planes': { ru: 'Плоскости', en: 'Planes' },
+  'optimizer.sats': { ru: 'Спутники', en: 'Satellites' },
+  'optimizer.period': { ru: 'Период', en: 'Period' },
+  'optimizer.velocity': { ru: 'Скорость', en: 'Velocity' },
+
   // Constellation names
   'constellation.universat': { ru: 'УниверСат', en: 'UniverSat' },
   'constellation.bauman': { ru: 'МГТУ Баумана', en: 'Bauman MSTU' },
