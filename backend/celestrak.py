@@ -222,47 +222,110 @@ async def _fetch_url(client: httpx.AsyncClient, url: str) -> Dict[int, Tuple[str
         return {}
 
 
-async def get_tle_by_source(source: str = "embedded") -> List[dict]:
+async def get_tle_by_source(
+    source: str = "embedded",
+    operational_only: bool = True,
+) -> Tuple[List[dict], Dict[str, object]]:
     """
-    Get TLE data depending on source.
+    Get TLE data depending on source, plus a meta dict describing what was actually
+    returned. The caller owns the decision of how to surface the meta to the user.
+
     source: "embedded" | "celestrak"
+    operational_only: if True, exclude satellites with status == "deorbited".
+
+    Returns (tle_data, meta). Meta keys:
+      - requested_source: what the caller asked for ("embedded" | "celestrak").
+      - effective_source: what actually served most records ("embedded", "celestrak",
+        or "embedded_fallback" if CelesTrak failed entirely and we fell back to
+        the built-in catalog).
+      - fallback_count: number of individual satellites that fell back to embedded
+        even though the requested source was celestrak.
+      - live_count: number of satellites served with fresh CelesTrak TLE.
+      - total: total TLE records returned.
+      - network_error: True if CelesTrak fetch raised or returned nothing when
+        requested.
+      - fetched_at: ISO timestamp (UTC) when this call produced data.
+      - cache_age_sec: age of the CelesTrak cache in seconds, or None.
+      - operational_only: mirrors the arg.
     """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    base_meta: Dict[str, object] = {
+        "requested_source": source,
+        "operational_only": operational_only,
+        "fetched_at": now_iso,
+        "cache_age_sec": None,
+        "network_error": False,
+        "fallback_count": 0,
+        "live_count": 0,
+    }
+
+    def _is_available(s) -> bool:
+        if not (s.tle_line1 and s.tle_line2):
+            return False
+        if operational_only and s.status == "deorbited":
+            return False
+        return True
+
     if source == "celestrak":
         try:
             live_tle = await fetch_celestrak_tle()
-            result = []
-            for s in RUSSIAN_CUBESATS:
-                if s.norad_id in live_tle:
-                    line1, line2 = live_tle[s.norad_id]
-                    result.append({
-                        "norad_id": s.norad_id,
-                        "name": s.name,
-                        "constellation": s.constellation,
-                        "tle_line1": line1,
-                        "tle_line2": line2,
-                        "source": "celestrak",
-                    })
-                elif s.tle_line1 and s.tle_line2:
-                    # Fallback to built-in data for this satellite
-                    result.append({
-                        "norad_id": s.norad_id,
-                        "name": s.name,
-                        "constellation": s.constellation,
-                        "tle_line1": s.tle_line1,
-                        "tle_line2": s.tle_line2,
-                        "source": "embedded_fallback",
-                    })
-            return result
         except Exception as e:
             logger.error("CelesTrak fetch failed, falling back to embedded: %s", e)
-            # Full fallback
-            return _get_embedded_tle_list()
-    else:
-        return _get_embedded_tle_list()
+            live_tle = {}
+            base_meta["network_error"] = True
+
+        if _cache_timestamp:
+            base_meta["cache_age_sec"] = max(0.0, time.time() - _cache_timestamp)
+
+        result = []
+        fallback_count = 0
+        live_count = 0
+        for s in RUSSIAN_CUBESATS:
+            if not _is_available(s):
+                continue
+            if s.norad_id in live_tle:
+                line1, line2 = live_tle[s.norad_id]
+                result.append({
+                    "norad_id": s.norad_id,
+                    "name": s.name,
+                    "constellation": s.constellation,
+                    "tle_line1": line1,
+                    "tle_line2": line2,
+                    "source": "celestrak",
+                })
+                live_count += 1
+            else:
+                result.append({
+                    "norad_id": s.norad_id,
+                    "name": s.name,
+                    "constellation": s.constellation,
+                    "tle_line1": s.tle_line1,
+                    "tle_line2": s.tle_line2,
+                    "source": "embedded_fallback",
+                })
+                fallback_count += 1
+
+        base_meta["fallback_count"] = fallback_count
+        base_meta["live_count"] = live_count
+        base_meta["total"] = len(result)
+        if live_count == 0:
+            base_meta["effective_source"] = "embedded_fallback"
+        elif fallback_count == 0:
+            base_meta["effective_source"] = "celestrak"
+        else:
+            base_meta["effective_source"] = "celestrak_partial"
+        return result, base_meta
+
+    result = _get_embedded_tle_list(operational_only=operational_only)
+    base_meta["effective_source"] = "embedded"
+    base_meta["total"] = len(result)
+    return result, base_meta
 
 
-def _get_embedded_tle_list() -> List[dict]:
-    """Built-in TLE as list of dicts."""
+def _get_embedded_tle_list(operational_only: bool = True) -> List[dict]:
+    """Built-in TLE as list of dicts. Skips deorbited spacecraft unless
+    operational_only=False, because stale TLE for decayed satellites produces
+    physically meaningless positions."""
     return [
         {
             "norad_id": s.norad_id,
@@ -274,7 +337,19 @@ def _get_embedded_tle_list() -> List[dict]:
         }
         for s in RUSSIAN_CUBESATS
         if s.tle_line1 and s.tle_line2
+        and (not operational_only or s.status != "deorbited")
     ]
+
+
+def get_cache_info() -> Dict[str, object]:
+    """Inspector for /api/health: is the CelesTrak cache warm and how old is it."""
+    if not _cache_timestamp:
+        return {"warm": False, "age_sec": None, "entries": len(_tle_cache)}
+    return {
+        "warm": True,
+        "age_sec": max(0.0, time.time() - _cache_timestamp),
+        "entries": len(_tle_cache),
+    }
 
 
 def invalidate_cache():

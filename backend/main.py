@@ -19,7 +19,7 @@ from orbital import (
     get_orbital_elements, predict_collisions, optimize_plane_distribution,
 )
 from ai_assistant import ask_starai
-from celestrak import get_tle_by_source, invalidate_cache, fetch_celestrak_tle
+from celestrak import get_tle_by_source, invalidate_cache, fetch_celestrak_tle, get_cache_info
 
 load_dotenv()
 
@@ -112,20 +112,44 @@ async def get_tle(source: str = Query(default="embedded", pattern="^(embedded|ce
     TLE data for client-side SGP4 propagation.
     ?source=embedded — built-in data (default)
     ?source=celestrak — load from CelesTrak (with fallback to built-in)
+
+    Response includes meta so the UI can show what actually served the data
+    (celestrak / celestrak_partial / embedded_fallback / embedded).
     """
-    tle_data = await get_tle_by_source(source)
-    return {"tle_data": tle_data, "source": source}
+    tle_data, meta = await get_tle_by_source(source)
+    return {"tle_data": tle_data, "source": source, "meta": meta}
 
 
 @app.post("/api/tle/refresh")
 async def refresh_tle():
     """Force refresh TLE cache from CelesTrak."""
     invalidate_cache()
-    tle_data = await get_tle_by_source("celestrak")
+    tle_data, meta = await get_tle_by_source("celestrak")
     return {
         "tle_data": tle_data,
         "source": "celestrak",
         "refreshed": True,
+        "meta": meta,
+    }
+
+
+@app.get("/api/health")
+async def health():
+    """Liveness + upstream status. Cheap to hit so the frontend can poll it
+    alongside freshness."""
+    from satellites import RUSSIAN_CUBESATS
+    cache = get_cache_info()
+    operational = sum(1 for s in RUSSIAN_CUBESATS if s.status != "deorbited")
+    return {
+        "status": "ok",
+        "version": "1.2.0",
+        "time": datetime.now(timezone.utc).isoformat(),
+        "catalog": {
+            "total": len(RUSSIAN_CUBESATS),
+            "operational": operational,
+            "archival": len(RUSSIAN_CUBESATS) - operational,
+        },
+        "celestrak_cache": cache,
     }
 
 
@@ -161,10 +185,17 @@ async def get_orbit_path(
     step_sec: float = Query(default=60.0, ge=10, le=600),
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
-    """Orbital track for visualization."""
+    """Orbital track for visualization. Returns 409 for archival (deorbited)
+    satellites — their TLE epoch is frozen at decay time and any propagation
+    produces physically meaningless coordinates."""
     sat = get_satellite_by_id(norad_id)
     if not sat:
         raise HTTPException(status_code=404, detail="Satellite not found")
+    if sat.status == "deorbited":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Satellite {sat.name} is archival (deorbited); live orbit propagation is disabled",
+        )
     tle_override = await _get_tle_override(source)
     path = propagate_orbit_path(sat, datetime.now(timezone.utc), steps, step_sec, tle_override=tle_override)
     return {"norad_id": norad_id, "name": sat.name, "path": path, "steps": steps, "source": source}
@@ -175,10 +206,15 @@ async def get_elements(
     norad_id: int,
     source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
 ):
-    """Keplerian orbital elements."""
+    """Keplerian orbital elements. Returns 409 for archival (deorbited) satellites."""
     sat = get_satellite_by_id(norad_id)
     if not sat:
         raise HTTPException(status_code=404, detail="Satellite not found")
+    if sat.status == "deorbited":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Satellite {sat.name} is archival (deorbited); elements are not served",
+        )
     tle_override = await _get_tle_override(source)
     return get_orbital_elements(sat, tle_override=tle_override)
 

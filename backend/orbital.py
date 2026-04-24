@@ -117,6 +117,7 @@ def eci_to_geodetic(x: float, y: float, z: float, jd_total: float) -> Tuple[floa
 def propagate_all(
     dt: datetime = None,
     tle_override: Dict[int, tuple] = None,
+    operational_only: bool = True,
 ) -> List[Dict[str, Any]]:
     """Propagate all satellites to time dt (or current UTC).
 
@@ -126,12 +127,17 @@ def propagate_all(
             If provided, TLE from this dict is used for each satellite
             (instead of built-in). Satellites missing from dict are propagated
             with built-in TLE.
+        operational_only: if True (default), deorbited satellites are excluded
+            from propagation. Their TLE epochs are stale and produce coordinates
+            far from reality, which mislead viewers.
     """
     if dt is None:
         dt = datetime.now(timezone.utc)
 
     results = []
     for sat in RUSSIAN_CUBESATS:
+        if operational_only and sat.status == "deorbited":
+            continue
         tle1, tle2 = _resolve_tle(sat, tle_override)
         if tle1 and tle2:
             sat_copy = _with_tle(sat, tle1, tle2)
@@ -173,15 +179,19 @@ def predict_collisions(
     hours_ahead: float = 24.0,
     step_sec: float = 60.0,
     tle_override: Dict[int, tuple] = None,
+    operational_only: bool = True,
 ) -> List[Dict[str, Any]]:
     """
     Predict potential collisions (close approaches).
     Checks all satellite pairs for minimum distance within the given time window.
+    Deorbited satellites are excluded by default.
     """
     dt_start = datetime.now(timezone.utc)
     steps = int(hours_ahead * 3600 / step_sec)
     sats_with_tle = []
     for s in RUSSIAN_CUBESATS:
+        if operational_only and s.status == "deorbited":
+            continue
         t1, t2 = _resolve_tle(s, tle_override)
         if t1 and t2:
             sats_with_tle.append(_with_tle(s, t1, t2))

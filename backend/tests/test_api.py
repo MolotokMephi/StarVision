@@ -59,6 +59,10 @@ async def test_get_tle_embedded(client):
     assert data["source"] == "embedded"
     assert "tle_data" in data
     assert len(data["tle_data"]) > 0
+    # Meta block is mandatory — frontend relies on it to show source/freshness.
+    assert "meta" in data
+    assert data["meta"]["requested_source"] == "embedded"
+    assert data["meta"]["effective_source"] == "embedded"
 
 
 @pytest.mark.asyncio

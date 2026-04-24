@@ -454,7 +454,7 @@ def _fallback_response(user_message: str, lang: str = "ru") -> Dict[str, Any]:
     if any(w in msg_lower for w in ["дальност", "радиус связ", "зона связ", "comm range", "communication range"]):
         nums = re.findall(r'\d+', msg_lower)
         if nums:
-            rng = min(10000, max(50, int(nums[0])))
+            rng = min(2000, max(50, int(nums[0])))
             return {
                 "message": (
                     f"Setting communication range: {rng} km. "

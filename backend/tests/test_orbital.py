@@ -68,8 +68,19 @@ class TestPropagateAll:
     """Test batch propagation."""
 
     def test_propagates_all_satellites_with_tle(self):
+        # By default, propagate_all filters out deorbited satellites so the UI
+        # doesn't show ghost positions for decayed spacecraft.
         results = propagate_all(TEST_TIME)
-        # All 15 satellites have embedded TLE, including deorbited ones
+        operational_with_tle = sum(
+            1 for s in RUSSIAN_CUBESATS
+            if s.tle_line1 and s.tle_line2 and s.status != "deorbited"
+        )
+        assert len(results) == operational_with_tle
+
+    def test_propagates_all_including_archival_when_requested(self):
+        # Escape hatch kept for callers that explicitly want the full set
+        # (e.g. a forensic view of past satellites).
+        results = propagate_all(TEST_TIME, operational_only=False)
         sats_with_tle = sum(1 for s in RUSSIAN_CUBESATS if s.tle_line1 and s.tle_line2)
         assert len(results) == sats_with_tle
 
