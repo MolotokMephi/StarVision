@@ -40,7 +40,7 @@
 | Satellite count | 3–15 | Uniform selection from catalog |
 | Orbit altitude | TLE / 400–2000 km | TLE = real data; otherwise virtual Walker constellation |
 | TLE source | Embedded / CelesTrak | Choose between demo data and live CelesTrak TLE |
-| Communication range | 50–10,000 km | ISL link visibility threshold |
+| Communication range | 50–2,000 km | ISL link visibility threshold |
 | Simulation speed | 1×–200× | Time acceleration presets |
 | ISL links | on/off | Show/hide inter-satellite links |
 | Orbital tracks | on/off | Show/hide orbit traces |
