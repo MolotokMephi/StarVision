@@ -14,7 +14,11 @@ interface SatelliteInfoPanelProps {
 }
 
 export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanelProps) {
-  const { lang, selectedSatellite, selectSatellite, focusSatellite, orbitAltitudeKm, orbitalPlanes, satelliteCount, timeSpeed } = useStore();
+  const {
+    lang, selectedSatellite, selectSatellite, focusSatellite,
+    orbitAltitudeKm, orbitalPlanes, satelliteCount, timeSpeed,
+    tleData, tleMeta,
+  } = useStore();
 
   const isVirtual = selectedSatellite !== null && selectedSatellite >= 90000;
 
@@ -32,7 +36,6 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
           form_factor: 'Virtual',
           launch_date: '—',
           status: 'active',
-          operational: true,
           description: lang === 'en'
             ? `Virtual satellite on circular orbit at ${orbitAltitudeKm} km altitude, ${orbitalPlanes} orbital planes, ${satelliteCount} total S/C.`
             : `Виртуальный спутник на круговой орбите высотой ${orbitAltitudeKm} км, ${orbitalPlanes} плоскостей, ${satelliteCount} КА.`,
@@ -118,12 +121,6 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
   const min = lang === 'ru' ? 'мин' : 'min';
   const kg = lang === 'ru' ? 'кг' : 'kg';
 
-  const isArchival = satData.operational === false;
-  const statusLabel = isArchival
-    ? (satData.status === 'deorbited' ? t('info.deorbited', lang) : t('info.archived', lang))
-    : t('info.active', lang);
-  const statusDotClass = isArchival ? 'bg-red-400' : 'bg-green-400';
-
   return (
     <div
       className="glass-panel absolute top-16 right-4 w-80 p-4 animate-slide-right z-10"
@@ -146,14 +143,15 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
       </div>
 
       {/* Status */}
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <span className={`inline-block w-2 h-2 rounded-full ${statusDotClass}`} />
-        <span className="text-xs text-star-400 font-mono">{statusLabel}</span>
-        {isArchival && (
-          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-red-900/40 border border-red-500/40 text-red-200">
-            ARCHIVE
-          </span>
-        )}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span
+          className={`inline-block w-2 h-2 rounded-full ${
+            satData.status === 'active' ? 'bg-green-400' : 'bg-red-400'
+          }`}
+        />
+        <span className="text-xs text-star-400 font-mono">
+          {satData.status === 'active' ? t('info.active', lang) : t('info.inactive', lang)}
+        </span>
         <span className="text-xs text-star-600 font-mono">|</span>
         <span className="text-xs text-star-400 font-mono">{satData.form_factor}</span>
         {!isVirtual && (
@@ -164,19 +162,38 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         )}
       </div>
 
-      {isArchival && (
-        <p className="text-[11px] text-red-300 font-body mb-3 leading-snug">
-          {t('info.archivalNoTelemetry', lang)}
-        </p>
-      )}
+      {/* Mode / source badge — make it unambiguous whether this is a Real TLE
+          satellite or a Virtual Walker slot, so jury and users don't conflate
+          real telemetry with synthetic positions. */}
+      <div className="mb-3">
+        {isVirtual ? (
+          <span className="inline-block text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300">
+            {t('mode.virtual', lang)}
+          </span>
+        ) : (
+          <span
+            className="inline-block text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-green-500/30 bg-green-500/10 text-green-300"
+            title={tleMeta ? `${tleMeta.effective_source} · ${tleMeta.fetched_at}` : undefined}
+          >
+            {t('mode.realTle', lang)} ·{' '}
+            {(() => {
+              const entry = tleData.find((x) => x.norad_id === satData.norad_id);
+              const s = entry?.source ?? tleMeta?.effective_source ?? 'embedded';
+              if (s === 'celestrak') return 'CelesTrak';
+              if (s === 'embedded_fallback') return 'fallback';
+              return 'embedded';
+            })()}
+          </span>
+        )}
+      </div>
 
       {/* Description */}
       <p className="text-xs text-star-300 font-body mb-4 leading-relaxed">
         {satData.description}
       </p>
 
-      {/* Telemetry — archival sats produce no meaningful telemetry */}
-      {effectivePos && !isArchival && (
+      {/* Telemetry */}
+      {effectivePos && (
         <div className="space-y-1 mb-4">
           <SectionTitle>{t('info.telemetry', lang)}</SectionTitle>
           <DataRow label={t('info.altitude', lang)} value={`${effectivePos.altitude_km.toFixed(1)} ${km}`} />
@@ -187,8 +204,8 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         </div>
       )}
 
-      {/* ECI coordinates — archival sats produce no meaningful coords */}
-      {effectivePos && !isArchival && (
+      {/* ECI coordinates */}
+      {effectivePos && (
         <div className="space-y-1 mb-4">
           <SectionTitle>{t('info.eciCoords', lang)}</SectionTitle>
           <DataRow label="X" value={effectivePos.eci.x.toFixed(1)} />
@@ -206,16 +223,12 @@ export function SatelliteInfoPanel({ satellites, positions }: SatelliteInfoPanel
         {!isVirtual && (
           <DataRow label={t('info.launch', lang)} value={satData.launch_date} />
         )}
-        {isArchival && satData.archive_date && (
-          <DataRow label={t('info.archiveDate', lang)} value={satData.archive_date} />
-        )}
       </div>
 
-      {/* Focus button — disabled for archival spacecraft */}
+      {/* Focus button */}
       <button
-        onClick={() => !isArchival && focusSatellite(selectedSatellite)}
-        disabled={isArchival}
-        className={`btn-star w-full mt-4 text-xs py-2 ${isArchival ? 'opacity-40 cursor-not-allowed' : ''}`}
+        onClick={() => focusSatellite(selectedSatellite)}
+        className="btn-star w-full mt-4 text-xs py-2"
       >
         {t('info.focusCamera', lang)}
       </button>

@@ -343,6 +343,7 @@ function SceneContent({ positions, tleData, orbitPaths, satelliteConstellations 
 
       {/* Satellite coverage zones */}
       <CoverageZones
+        positions={positions}
         tleData={tleData}
         satelliteConstellations={satelliteConstellations}
       />

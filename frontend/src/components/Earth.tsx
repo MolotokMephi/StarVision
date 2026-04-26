@@ -65,6 +65,7 @@ function EarthWithTexture() {
           color="#6aadee"
           transparent
           opacity={0.14}
+          depthWrite={false}
           side={BackSide}
         />
       </mesh>
@@ -76,6 +77,7 @@ function EarthWithTexture() {
           color="#4499ff"
           transparent
           opacity={0.07}
+          depthWrite={false}
           side={BackSide}
         />
       </mesh>
@@ -116,6 +118,7 @@ function EarthFallback() {
           color="#5599dd"
           transparent
           opacity={0.12}
+          depthWrite={false}
           side={BackSide}
         />
       </mesh>
@@ -125,6 +128,7 @@ function EarthFallback() {
           color="#3389ff"
           transparent
           opacity={0.04}
+          depthWrite={false}
           side={BackSide}
         />
       </mesh>
