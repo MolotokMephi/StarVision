@@ -96,7 +96,8 @@ function loadAISettings(): AISettings {
     const provider = (localStorage.getItem(LS_PROVIDER) as AIProvider) || 'auto';
     return {
       provider: provider === 'openrouter' ? 'openrouter' : 'auto',
-      apiKey: localStorage.getItem(LS_API_KEY) || '',
+      // Never persist/read API keys from localStorage.
+      apiKey: '',
       model: localStorage.getItem(LS_MODEL) || '',
     };
   } catch {
@@ -107,8 +108,8 @@ function loadAISettings(): AISettings {
 function saveAISettings(s: AISettings) {
   try {
     localStorage.setItem(LS_PROVIDER, s.provider);
-    if (s.apiKey) localStorage.setItem(LS_API_KEY, s.apiKey);
-    else localStorage.removeItem(LS_API_KEY);
+    // Never persist API keys in browser storage; clear any legacy stored value.
+    localStorage.removeItem(LS_API_KEY);
     if (s.model) localStorage.setItem(LS_MODEL, s.model);
     else localStorage.removeItem(LS_MODEL);
   } catch {
