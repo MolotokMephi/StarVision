@@ -75,6 +75,47 @@ function sanitizeAction(
   }
 }
 
+// LocalStorage keys for the user-supplied AI provider settings.
+// Stored in plain localStorage on the client only; never sent anywhere
+// except as a per-request payload to /api/starai/chat.
+const LS_PROVIDER = 'starai.provider';
+const LS_API_KEY = 'starai.openrouter_key';
+const LS_MODEL = 'starai.openrouter_model';
+
+type AIProvider = 'auto' | 'openrouter';
+
+interface AISettings {
+  provider: AIProvider;
+  apiKey: string;
+  model: string;
+}
+
+function loadAISettings(): AISettings {
+  if (typeof window === 'undefined') return { provider: 'auto', apiKey: '', model: '' };
+  try {
+    const provider = (localStorage.getItem(LS_PROVIDER) as AIProvider) || 'auto';
+    return {
+      provider: provider === 'openrouter' ? 'openrouter' : 'auto',
+      apiKey: localStorage.getItem(LS_API_KEY) || '',
+      model: localStorage.getItem(LS_MODEL) || '',
+    };
+  } catch {
+    return { provider: 'auto', apiKey: '', model: '' };
+  }
+}
+
+function saveAISettings(s: AISettings) {
+  try {
+    localStorage.setItem(LS_PROVIDER, s.provider);
+    if (s.apiKey) localStorage.setItem(LS_API_KEY, s.apiKey);
+    else localStorage.removeItem(LS_API_KEY);
+    if (s.model) localStorage.setItem(LS_MODEL, s.model);
+    else localStorage.removeItem(LS_MODEL);
+  } catch {
+    // Ignore storage errors (private mode, quota, etc.)
+  }
+}
+
 // SVG Star icon for StarAI
 function StarIcon({ size = 24, className = '' }: { size?: number; className?: string }) {
   return (
@@ -125,6 +166,9 @@ export function StarAIChat() {
   } = useStore();
 
   const [input, setInput] = useState('');
+  const [aiSettings, setAiSettings] = useState<AISettings>(() => loadAISettings());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState<AISettings>(aiSettings);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -206,7 +250,18 @@ export function StarAIChat() {
     const historyForApi = [...chatMessages];
 
     try {
-      const response = await sendChatMessage(msg, historyForApi, lang);
+      // Forward user-owned credentials only when the user has explicitly
+      // chosen OpenRouter and supplied a key. In "auto" mode we omit them
+      // so the server falls back to its own credentials / offline mode.
+      const ai =
+        aiSettings.provider === 'openrouter' && aiSettings.apiKey
+          ? {
+              provider: 'openrouter',
+              api_key: aiSettings.apiKey,
+              model: aiSettings.model || undefined,
+            }
+          : undefined;
+      const response = await sendChatMessage(msg, historyForApi, lang, ai);
       addChatMessage({
         role: 'assistant',
         content: response.message,
@@ -291,13 +346,120 @@ export function StarAIChat() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setChatOpen(false)}
-          className="text-star-500 hover:text-star-200 transition-colors w-7 h-7 rounded-full hover:bg-white/5 flex items-center justify-center"
-        >
-          ×
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setSettingsDraft(aiSettings);
+              setSettingsOpen((v) => !v);
+            }}
+            title={t('chat.settings', lang)}
+            aria-label={t('chat.settings', lang)}
+            className={`text-star-500 hover:text-star-200 transition-colors w-7 h-7 rounded-full hover:bg-white/5 flex items-center justify-center ${settingsOpen ? 'bg-white/10 text-star-200' : ''}`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setChatOpen(false)}
+            className="text-star-500 hover:text-star-200 transition-colors w-7 h-7 rounded-full hover:bg-white/5 flex items-center justify-center"
+          >
+            ×
+          </button>
+        </div>
       </div>
+
+      {/* Settings panel — collapsible AI provider config */}
+      {settingsOpen && (
+        <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02] space-y-2">
+          <div className="text-[11px] font-display text-star-200 tracking-wide uppercase mb-1">
+            {t('chat.settings', lang)}
+          </div>
+          <div>
+            <div className="text-[10px] text-star-400 font-mono mb-1">{t('chat.providerLabel', lang)}</div>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setSettingsDraft((s) => ({ ...s, provider: 'auto' }))}
+                className={`btn-star text-[10px] flex-1 py-1.5 ${settingsDraft.provider === 'auto' ? 'active' : ''}`}
+              >
+                {t('chat.providerAuto', lang)}
+              </button>
+              <button
+                onClick={() => setSettingsDraft((s) => ({ ...s, provider: 'openrouter' }))}
+                className={`btn-star text-[10px] flex-1 py-1.5 ${settingsDraft.provider === 'openrouter' ? 'active' : ''}`}
+              >
+                {t('chat.providerOpenRouter', lang)}
+              </button>
+            </div>
+          </div>
+          {settingsDraft.provider === 'openrouter' && (
+            <>
+              <div>
+                <div className="text-[10px] text-star-400 font-mono mb-1">{t('chat.apiKey', lang)}</div>
+                <input
+                  type="password"
+                  value={settingsDraft.apiKey}
+                  onChange={(e) => setSettingsDraft((s) => ({ ...s, apiKey: e.target.value }))}
+                  placeholder={t('chat.apiKeyPlaceholder', lang)}
+                  className="chat-input w-full px-2 py-1.5 text-[11px] rounded-md font-mono"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <div className="text-[9px] text-star-600 font-mono mt-1 leading-snug">
+                  {t('chat.apiKeyHint', lang)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-star-400 font-mono mb-1">{t('chat.modelLabel', lang)}</div>
+                <input
+                  type="text"
+                  value={settingsDraft.model}
+                  onChange={(e) => setSettingsDraft((s) => ({ ...s, model: e.target.value }))}
+                  placeholder={t('chat.modelPlaceholder', lang)}
+                  className="chat-input w-full px-2 py-1.5 text-[11px] rounded-md font-mono"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+            </>
+          )}
+          <div className="flex gap-1.5 pt-1">
+            <button
+              onClick={() => {
+                const next: AISettings = {
+                  provider: settingsDraft.provider,
+                  apiKey: settingsDraft.apiKey.trim(),
+                  model: settingsDraft.model.trim(),
+                };
+                saveAISettings(next);
+                setAiSettings(next);
+                setSettingsOpen(false);
+              }}
+              className="btn-star text-[10px] flex-1 py-1.5 active"
+            >
+              {t('chat.saveSettings', lang)}
+            </button>
+            <button
+              onClick={() => {
+                const cleared: AISettings = { provider: 'auto', apiKey: '', model: '' };
+                saveAISettings(cleared);
+                setAiSettings(cleared);
+                setSettingsDraft(cleared);
+              }}
+              className="btn-star text-[10px] flex-1 py-1.5"
+            >
+              {t('chat.clearSettings', lang)}
+            </button>
+          </div>
+          {aiSettings.provider === 'openrouter' && aiSettings.apiKey && (
+            <div className="text-[9px] text-green-400 font-mono pt-0.5">
+              ● {t('chat.usingProvider', lang)}: OpenRouter
+              {aiSettings.model ? ` · ${aiSettings.model}` : ''}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">

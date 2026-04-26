@@ -9,6 +9,7 @@ import type {
   APISatellitesResponse,
   APIPositionsResponse,
   APIOrbitResponse,
+  APIOrbitsBatchResponse,
   APIChatResponse,
   APITleResponse,
   APIHealthResponse,
@@ -83,6 +84,19 @@ export async function fetchOrbitPath(
   return fetchJSON(`/orbit/${noradId}?${params}`);
 }
 
+export async function fetchAllOrbitPaths(
+  steps = 120,
+  stepSec = 60,
+  source: 'embedded' | 'celestrak' = 'embedded',
+): Promise<APIOrbitsBatchResponse> {
+  const params = new URLSearchParams({
+    steps: String(steps),
+    step_sec: String(stepSec),
+  });
+  if (source !== 'embedded') params.set('source', source);
+  return fetchJSON<APIOrbitsBatchResponse>(`/orbits?${params}`);
+}
+
 export async function fetchTLE(
   source: 'embedded' | 'celestrak' = 'embedded',
 ): Promise<APITleResponse> {
@@ -130,14 +144,19 @@ export async function fetchOptimizePlanes(opts: {
 export async function sendChatMessage(
   message: string,
   history: ChatMessage[],
-  lang: string = 'ru'
+  lang: string = 'ru',
+  ai?: { provider?: string; api_key?: string; model?: string },
 ): Promise<APIChatResponse> {
+  const body: Record<string, unknown> = {
+    message,
+    history: history.map((m) => ({ role: m.role, content: m.content })),
+    lang,
+  };
+  if (ai?.provider) body.provider = ai.provider;
+  if (ai?.api_key) body.api_key = ai.api_key;
+  if (ai?.model) body.model = ai.model;
   return fetchJSON('/starai/chat', {
     method: 'POST',
-    body: JSON.stringify({
-      message,
-      history: history.map((m) => ({ role: m.role, content: m.content })),
-      lang,
-    }),
+    body: JSON.stringify(body),
   });
 }

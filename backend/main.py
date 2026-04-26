@@ -50,6 +50,24 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def _warm_celestrak_cache() -> None:
+    """Fire-and-forget CelesTrak prefetch so the very first user click on
+    "CelesTrak" finds the cache already populated, instead of waiting
+    ~10 s for the cold round-trip. Failure is logged and ignored — the
+    endpoint still works via embedded fallback.
+    """
+    import asyncio as _asyncio
+
+    async def _bg():
+        try:
+            await fetch_celestrak_tle()
+        except Exception:
+            logging.getLogger(__name__).exception("CelesTrak warm-up failed")
+
+    _asyncio.create_task(_bg())
+
+
 # ── Request models ──────────────────────────────────────────────────
 class ChatMessage(BaseModel):
     role: str       # "user" | "assistant"
@@ -60,6 +78,12 @@ class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = []
     lang: str = "ru"
+    # Optional AI provider override. The frontend can ship a user-owned
+    # OpenRouter key per-request so different judges can plug in different
+    # keys without touching the server. Server never persists these.
+    provider: Optional[str] = None      # "openrouter" | "anthropic" | None
+    api_key: Optional[str] = None
+    model: Optional[str] = None
 
 
 # ── Helper: TLE override ──────────────────────────────────────────
@@ -288,6 +312,42 @@ async def get_orbit_path(
     }
 
 
+@app.get("/api/orbits")
+async def get_all_orbit_paths(
+    steps: int = Query(default=120, ge=10, le=500),
+    step_sec: float = Query(default=60.0, ge=10, le=600),
+    source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
+):
+    """Batch orbital tracks for every operational satellite.
+
+    Replaces N individual /api/orbit/{id} round-trips with one call, which
+    cuts the wall-clock cost of switching to the live (CelesTrak) source
+    from N×latency to a single shared TLE-resolve + propagation pass.
+    """
+    tle_override, meta = await _get_tle_override(source)
+    now = datetime.now(timezone.utc)
+    paths: dict[int, list] = {}
+    names: dict[int, str] = {}
+    for sat in get_all_satellites():
+        if not sat["operational"]:
+            continue
+        sat_info = get_satellite_by_id(sat["norad_id"])
+        if not sat_info or not sat_info.tle_line1 or not sat_info.tle_line2:
+            continue
+        path = propagate_orbit_path(sat_info, now, steps, step_sec, tle_override=tle_override)
+        if path:
+            paths[sat_info.norad_id] = path
+            names[sat_info.norad_id] = sat_info.name
+    return {
+        "paths": paths,
+        "names": names,
+        "steps": steps,
+        "step_sec": step_sec,
+        "source": meta["effective_source"],
+        "meta": meta,
+    }
+
+
 @app.get("/api/orbital-elements/{norad_id}")
 async def get_elements(
     norad_id: int,
@@ -425,7 +485,14 @@ async def get_optimized_planes(
 async def starai_chat(req: ChatRequest):
     """Chat with StarAI — response + UI commands."""
     history = [{"role": m.role, "content": m.content} for m in req.history]
-    result = await ask_starai(req.message, history, lang=req.lang)
+    result = await ask_starai(
+        req.message,
+        history,
+        lang=req.lang,
+        provider=req.provider,
+        api_key=req.api_key,
+        model=req.model,
+    )
     return result
 
 

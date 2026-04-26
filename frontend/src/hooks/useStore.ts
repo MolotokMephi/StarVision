@@ -136,6 +136,7 @@ export const useStore = create<AppState>((set, get) => ({
   setPositions: (pos) => set({ positions: pos }),
   setOrbitPath: (id, path) =>
     set((state) => ({ orbitPaths: { ...state.orbitPaths, [id]: path } })),
+  setOrbitPaths: (paths) => set({ orbitPaths: paths }),
   setTleData: (data) => set({ tleData: data }),
   setTleMeta: (meta) => set({ tleMeta: meta }),
   setBackendHealth: (health, reachable) =>

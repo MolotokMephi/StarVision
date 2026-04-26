@@ -167,6 +167,7 @@ export interface AppState {
   setSatellites: (sats: SatelliteData[]) => void;
   setPositions: (pos: SatellitePosition[]) => void;
   setOrbitPath: (id: number, path: OrbitPoint[]) => void;
+  setOrbitPaths: (paths: Record<number, OrbitPoint[]>) => void;
   setTleData: (data: TLEData[]) => void;
   resetView: () => void;
 }
@@ -237,6 +238,15 @@ export interface APIOrbitResponse {
   path: OrbitPoint[];
   steps: number;
   source?: string;
+}
+
+export interface APIOrbitsBatchResponse {
+  paths: Record<number, OrbitPoint[]>;
+  names: Record<number, string>;
+  steps: number;
+  step_sec: number;
+  source?: string;
+  meta?: TleResponseMeta;
 }
 
 export interface APIChatResponse {

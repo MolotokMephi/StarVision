@@ -15,12 +15,31 @@ import httpx
 
 from satellites import RUSSIAN_CUBESATS, is_operational
 
+# Detect HTTP/2 support once at import time. requirements.txt asks for
+# httpx[http2], but if h2 is missing locally we degrade to HTTP/1.1
+# rather than crashing on first /api/tle?source=celestrak.
+try:
+    import h2  # noqa: F401
+    _HTTP2_AVAILABLE = True
+except ImportError:
+    _HTTP2_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
-# CelesTrak URLs for TLE (CubeSat and amateur-radio — cover Russian CubeSats)
+# Primary group endpoints (CelesTrak). When CelesTrak is reachable they
+# cover most CubeSats in one shot.
 CELESTRAK_URLS = [
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle",
     "https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle",
+]
+
+# Mirror endpoints used when CelesTrak is unreachable (e.g. blocked from
+# the user's network). AMSAT publishes amateur-band TLEs in plain TLE
+# format and is reachable from networks where celestrak.org is not. It
+# only covers a subset of the catalog, but partial live data is strictly
+# better than the "0/N live" state we'd otherwise show.
+MIRROR_URLS = [
+    "https://www.amsat.org/tle/current/nasabare.txt",
 ]
 
 # TLE data cache: norad_id -> (tle_line1, tle_line2)
@@ -196,34 +215,66 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
         _last_fetch_attempt = time.time()
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                # Load group files in parallel
-                tasks = [_fetch_url(client, url) for url in CELESTRAK_URLS]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
+            # Single-pass parallel fetch: kick off group files AND a
+            # per-NORAD lookup for every requested satellite at the same
+            # time. Group results usually arrive first and populate most
+            # entries; per-NORAD fetches fill in anything the groups miss
+            # (Russian CubeSats often aren't in the "cubesat"/"amateur"
+            # CelesTrak groups, so the old "groups first, then individuals"
+            # pipeline doubled latency — every cold load paid both phases).
+            # Per-request timeout is bounded so a single slow CelesTrak
+            # response cannot hold the cache lock for tens of seconds.
+            # connect=3s: when CelesTrak is blocked at the network edge
+            # (common from RU networks), every connection attempt times
+            # out; a 3 s budget makes the whole "tried, failed, falling
+            # back to embedded" loop feel snappy instead of frozen.
+            timeout = httpx.Timeout(connect=3.0, read=10.0, write=5.0, pool=5.0)
+            limits = httpx.Limits(max_connections=32, max_keepalive_connections=16)
+            async with httpx.AsyncClient(
+                timeout=timeout, http2=_HTTP2_AVAILABLE, limits=limits,
+                follow_redirects=True,
+            ) as client:
+                # Wrap as Tasks so we can harvest finished work after a
+                # wall-clock timeout. Without explicit Task wrapping a
+                # cancelled gather would discard partial results.
+                tasks: list[asyncio.Task] = []
+                for url in CELESTRAK_URLS:
+                    tasks.append(asyncio.create_task(_fetch_url(client, url)))
+                for nid in norad_ids:
+                    tasks.append(asyncio.create_task(_fetch_url(
+                        client,
+                        f"https://celestrak.org/NORAD/elements/gp.php?CATNR={nid}&FORMAT=tle",
+                    )))
+                for url in MIRROR_URLS:
+                    tasks.append(asyncio.create_task(_fetch_url(client, url)))
+                logger.info(
+                    "TLE fetch: %d total requests in parallel (CelesTrak + mirrors)",
+                    len(tasks),
+                )
+                # Hard wall-clock cap on the entire fetch. httpx's per-
+                # request connect timeout interacts with HTTP/2 and DNS
+                # retries in ways that can stretch a cold "blocked host"
+                # fetch to tens of seconds. A 6 s ceiling guarantees the
+                # user sees feedback fast — anything that arrived before
+                # the deadline is still committed to the cache.
+                done, pending = await asyncio.wait(tasks, timeout=6.0)
+                if pending:
+                    logger.warning(
+                        "TLE fetch hit 6s wall-clock cap; %d pending, %d done",
+                        len(pending), len(done),
+                    )
+                    for fut in pending:
+                        fut.cancel()
 
-                for result in results:
+                for fut in done:
+                    try:
+                        result = fut.result()
+                    except Exception:  # noqa: BLE001
+                        continue
                     if isinstance(result, dict):
                         for nid, tle in result.items():
                             if nid in target_set:
                                 all_tle[nid] = tle
-
-                # For satellites not found in group files — fetch individually.
-                missing = target_set - set(all_tle.keys())
-                if missing:
-                    logger.info("Fetching %d missing satellites individually", len(missing))
-                    individual_tasks = [
-                        _fetch_url(
-                            client,
-                            f"https://celestrak.org/NORAD/elements/gp.php?CATNR={nid}&FORMAT=tle",
-                        )
-                        for nid in missing
-                    ]
-                    ind_results = await asyncio.gather(*individual_tasks, return_exceptions=True)
-                    for result in ind_results:
-                        if isinstance(result, dict):
-                            for nid, tle in result.items():
-                                if nid in target_set:
-                                    all_tle[nid] = tle
         except Exception:
             # Full traceback goes to server logs only; clients see an
             # opaque code via get_cache_status().
