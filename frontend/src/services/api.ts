@@ -145,16 +145,12 @@ export async function sendChatMessage(
   message: string,
   history: ChatMessage[],
   lang: string = 'ru',
-  ai?: { provider?: string; api_key?: string; model?: string },
 ): Promise<APIChatResponse> {
   const body: Record<string, unknown> = {
     message,
     history: history.map((m) => ({ role: m.role, content: m.content })),
     lang,
   };
-  if (ai?.provider) body.provider = ai.provider;
-  if (ai?.api_key) body.api_key = ai.api_key;
-  if (ai?.model) body.model = ai.model;
   return fetchJSON('/starai/chat', {
     method: 'POST',
     body: JSON.stringify(body),

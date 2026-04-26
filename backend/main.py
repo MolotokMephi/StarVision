@@ -7,12 +7,15 @@ import logging
 import math
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 from satellites import (
     get_all_satellites, get_satellite_by_id,
@@ -26,8 +29,6 @@ from ai_assistant import ask_starai
 from celestrak import (
     get_tle_by_source, invalidate_cache, fetch_celestrak_tle, get_cache_status,
 )
-
-load_dotenv()
 
 # ── Application ─────────────────────────────────────────────────────
 ALLOWED_ORIGINS = os.getenv(
@@ -78,12 +79,6 @@ class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = []
     lang: str = "ru"
-    # Optional AI provider override. The frontend can ship a user-owned
-    # OpenRouter key per-request so different judges can plug in different
-    # keys without touching the server. Server never persists these.
-    provider: Optional[str] = None      # "openrouter" | "anthropic" | None
-    api_key: Optional[str] = None
-    model: Optional[str] = None
 
 
 # ── Helper: TLE override ──────────────────────────────────────────
@@ -489,9 +484,6 @@ async def starai_chat(req: ChatRequest):
         req.message,
         history,
         lang=req.lang,
-        provider=req.provider,
-        api_key=req.api_key,
-        model=req.model,
     )
     return result
 

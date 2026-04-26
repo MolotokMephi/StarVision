@@ -20,7 +20,7 @@ pip install -r requirements.txt --quiet
 # .env
 if [ ! -f ".env" ]; then
     cp .env.example .env
-    echo "⚠️  Создан .env файл — пропишите ANTHROPIC_API_KEY для StarAI"
+    echo "⚠️  Создан .env файл — пропишите OPENROUTER_API_KEY для StarAI"
 fi
 
 echo ""

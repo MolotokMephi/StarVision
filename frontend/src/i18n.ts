@@ -123,24 +123,6 @@ export const translations = {
   'chat.hint4': { ru: 'Сколько активных связей?', en: 'How many active links?' },
   'chat.hint5': { ru: 'Покажи все орбиты', en: 'Show all orbits' },
   'chat.hint6': { ru: 'Установи 10 спутников', en: 'Set 10 satellites' },
-  'chat.settings': { ru: 'Настройки ИИ', en: 'AI Settings' },
-  'chat.settingsClose': { ru: 'Закрыть', en: 'Close' },
-  'chat.providerLabel': { ru: 'Провайдер', en: 'Provider' },
-  'chat.providerAuto': { ru: 'Авто (сервер)', en: 'Auto (server)' },
-  'chat.providerOpenRouter': { ru: 'OpenRouter', en: 'OpenRouter' },
-  'chat.apiKey': { ru: 'API-ключ', en: 'API key' },
-  'chat.apiKeyPlaceholder': { ru: 'sk-or-...', en: 'sk-or-...' },
-  'chat.apiKeyHint': {
-    ru: 'Ключ хранится только в этом браузере (localStorage). Создать: openrouter.ai/keys',
-    en: 'Key is stored only in this browser (localStorage). Get one at openrouter.ai/keys',
-  },
-  'chat.modelLabel': { ru: 'Модель', en: 'Model' },
-  'chat.modelPlaceholder': { ru: 'openai/gpt-4o-mini', en: 'openai/gpt-4o-mini' },
-  'chat.saveSettings': { ru: 'Сохранить', en: 'Save' },
-  'chat.clearSettings': { ru: 'Сбросить', en: 'Clear' },
-  'chat.savedOk': { ru: 'Настройки сохранены', en: 'Settings saved' },
-  'chat.usingProvider': { ru: 'Используется', en: 'Using' },
-
   // ISL tooltip
   'isl.distance': { ru: 'км', en: 'km' },
 

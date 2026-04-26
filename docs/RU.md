@@ -14,7 +14,7 @@
 - **Автоматическая подгрузка TLE с CelesTrak** с выбором источника данных
 - Параметризация: количество КА, высота орбиты, дальность связи
 - Мультиязычный интерфейс (русский / английский)
-- ИИ-ассистент StarAI на Anthropic Claude API
+- ИИ-ассистент StarAI через серверный OpenRouter API
 
 ---
 
@@ -27,7 +27,7 @@
 - **NASA Blue Marble** текстура Земли с Suspense fallback
 - **2 модели CubeSat**: 1U (2 панели) и 3U (4 панели) — процедурные Three.js
 - **Плавная анимация камеры** (lerp) с режимом слежения за спутником
-- **StarAI** — встроенный ИИ-ассистент (Anthropic Claude API) с командами управления
+- **StarAI** — встроенный ИИ-ассистент (серверный OpenRouter API) с командами управления
 - **Виртуальные Walker-орбиты** — настраиваемая высота (400–2000 км), 1–7 плоскостей
 - **Зоны покрытия** — визуализация зоны видимости спутников на поверхности Земли
 - **Оптимизированный рендеринг** — пулинг объектов, дросселирование, адаптивный DPR
@@ -86,13 +86,13 @@ graph TB
     end
 
     subgraph External["Внешние сервисы"]
-        Claude[Anthropic Claude API]
+        OpenRouter[OpenRouter API]
         TLE_src[CelesTrak]
         NASA[NASA Blue Marble]
     end
 
     API_Client -->|HTTP/JSON| REST
-    AI -->|API call| Claude
+    AI -->|API call| OpenRouter
     Celestrak -->|TLE данные| TLE_src
     Scene -.->|текстура| NASA
 
@@ -256,7 +256,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env           # Добавить ANTHROPIC_API_KEY для StarAI (опционально)
+cp .env.example .env           # Добавить OPENROUTER_API_KEY для StarAI (опционально)
 uvicorn main:app --reload --port 8000
 ```
 
@@ -294,7 +294,7 @@ StarVision/
 │   ├── satellites.py         # Каталог 15 российских КА + TLE
 │   ├── orbital.py            # SGP4-пропагация, ECI → геодезические
 │   ├── celestrak.py          # Загрузка TLE с CelesTrak + кэш
-│   ├── ai_assistant.py       # StarAI — Claude API + оффлайн fallback
+│   ├── ai_assistant.py       # StarAI — OpenRouter API + оффлайн fallback
 │   ├── requirements.txt
 │   └── .env.example
 ├── frontend/
@@ -333,7 +333,7 @@ StarVision/
 | Состояние | Zustand | MIT |
 | Бэкенд | Python FastAPI | MIT |
 | Орбитальная механика (сервер) | python-sgp4 | MIT |
-| ИИ-ассистент | Anthropic Claude API | — |
+| ИИ-ассистент | OpenRouter API (серверный) | — |
 | Сборщик | Vite | MIT |
 
 ---

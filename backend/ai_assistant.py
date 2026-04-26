@@ -7,11 +7,15 @@ import json
 import os
 import re
 import logging
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
+from dotenv import load_dotenv
 import httpx
 
 from satellites import RUSSIAN_CUBESATS, is_operational
+
+load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 
 # ── Action validation ───────────────────────────────────────────────
@@ -122,19 +126,33 @@ def validate_actions(actions: List[Any]) -> Tuple[List[Dict[str, Any]], List[str
 
 # Anthropic API (via HTTP, no SDK — for simplicity)
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
-# OpenRouter — OpenAI-compatible gateway. The API key is supplied by the
-# user from the frontend (per request), not stored server-side, so the
-# hackathon judges can plug in their own key without redeploying.
+# OpenRouter — OpenAI-compatible gateway. The key is stored server-side in
+# backend/.env so the browser never receives or forwards it.
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_DEFAULT_MODEL = os.getenv(
-    "OPENROUTER_DEFAULT_MODEL",
-    "openai/gpt-4o-mini",
-)
-# Optional fallback key for ops-side default; user-supplied key always wins.
-OPENROUTER_DEFAULT_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini"
+
+
+def _env(name: str) -> str:
+    return os.getenv(name, "").strip()
+
+
+def _get_anthropic_api_key() -> str:
+    return _env("ANTHROPIC_API_KEY")
+
+
+def _get_anthropic_model() -> str:
+    return _env("ANTHROPIC_MODEL") or ANTHROPIC_DEFAULT_MODEL
+
+
+def _get_openrouter_api_key() -> str:
+    return _env("OPENROUTER_API_KEY")
+
+
+def _get_openrouter_model(model: Optional[str] = None) -> str:
+    default_model = _env("OPENROUTER_DEFAULT_MODEL") or OPENROUTER_DEFAULT_MODEL
+    return (model or default_model).strip() or default_model
 
 SYSTEM_PROMPT_BASE = """You are StarAI, the intelligent assistant of the StarVision project.
 StarVision is a digital twin of a constellation of Russian cubesats and small spacecraft.
@@ -222,18 +240,19 @@ async def _ask_anthropic(
     user_message: str,
     history: List[Dict[str, str]],
     lang: str,
+    api_key: str,
 ) -> Dict[str, Any]:
     messages = list(history) + [{"role": "user", "content": user_message}]
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             ANTHROPIC_API_URL,
             headers={
-                "x-api-key": ANTHROPIC_API_KEY,
+                "x-api-key": api_key,
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             },
             json={
-                "model": MODEL,
+                "model": _get_anthropic_model(),
                 "max_tokens": 1024,
                 "system": _build_system_prompt(lang),
                 "messages": messages,
@@ -268,7 +287,7 @@ async def _ask_openrouter(
     """Call OpenRouter (OpenAI-compatible). The system prompt goes as a
     system role message; assistant/user history is forwarded as-is.
     """
-    chosen_model = (model or OPENROUTER_DEFAULT_MODEL).strip() or OPENROUTER_DEFAULT_MODEL
+    chosen_model = _get_openrouter_model(model)
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": _build_system_prompt(lang)},
     ]
@@ -316,57 +335,35 @@ async def ask_starai(
     user_message: str,
     conversation_history: List[Dict[str, str]] = None,
     lang: str = "ru",
-    provider: Optional[str] = None,
-    api_key: Optional[str] = None,
-    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Send a message to StarAI and receive response + UI commands.
 
     Provider routing:
-    - "openrouter" + api_key  → user-supplied OpenRouter key (preferred for hackathon demos)
-    - server-side ANTHROPIC_API_KEY → Claude direct
-    - server-side OPENROUTER_API_KEY → OpenRouter with default key
+    - server-side OPENROUTER_API_KEY -> OpenRouter with default model
+    - server-side ANTHROPIC_API_KEY -> Claude direct fallback
     - otherwise → offline fallback (canned responses)
     """
     history = list(conversation_history or [])
 
-    # 1. Explicit user-supplied OpenRouter key wins.
-    if (provider or "").lower() == "openrouter" and api_key:
+    # 1. Server-side OpenRouter key from backend/.env.
+    openrouter_key = _get_openrouter_api_key()
+    if openrouter_key:
         try:
-            return await _ask_openrouter(user_message, history, lang, api_key, model)
+            return await _ask_openrouter(user_message, history, lang, openrouter_key, None)
         except Exception:
             logging.exception("StarAI OpenRouter call failed")
-            return _wrap_response(
-                (
-                    "OpenRouter request failed. Check your API key or model name. "
-                    "Working in offline mode."
-                    if lang == "en" else
-                    "Сбой запроса в OpenRouter. Проверь API-ключ или название модели. "
-                    "Работаю в офлайн-режиме."
-                ),
-                [],
-                lang=lang,
-                source="offline",
-            )
+            # Fall through to Anthropic fallback or offline mode.
 
-    # 2. Server-side Anthropic key.
-    if ANTHROPIC_API_KEY:
+    # 2. Server-side Anthropic key as fallback.
+    anthropic_key = _get_anthropic_api_key()
+    if anthropic_key:
         try:
-            return await _ask_anthropic(user_message, history, lang)
+            return await _ask_anthropic(user_message, history, lang, anthropic_key)
         except Exception:
             logging.exception("StarAI Anthropic call failed")
-            # Fall through to OpenRouter default or offline.
+            # Fall through to offline.
 
-    # 3. Server-side OpenRouter default key.
-    if OPENROUTER_DEFAULT_KEY:
-        try:
-            return await _ask_openrouter(
-                user_message, history, lang, OPENROUTER_DEFAULT_KEY, model,
-            )
-        except Exception:
-            logging.exception("StarAI OpenRouter (default key) call failed")
-
-    # 4. Fallback canned responses.
+    # 3. Fallback canned responses.
     raw = _fallback_response(user_message, lang)
     return _wrap_response(
         raw.get("message", ""),

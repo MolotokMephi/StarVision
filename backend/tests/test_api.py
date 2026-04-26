@@ -226,3 +226,40 @@ async def test_get_config(client):
     assert data["earth_radius_km"] == 6371.0
     assert "constellations" in data
     assert len(data["constellations"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_starai_chat_does_not_forward_client_credentials(client, monkeypatch):
+    captured = {}
+
+    async def fake_ask_starai(user_message, conversation_history=None, lang="ru"):
+        captured["user_message"] = user_message
+        captured["conversation_history"] = conversation_history
+        captured["lang"] = lang
+        return {
+            "message": "ok",
+            "actions": [],
+            "rejected_actions": [],
+            "source": "test",
+        }
+
+    monkeypatch.setattr("main.ask_starai", fake_ask_starai)
+    resp = await client.post(
+        "/api/starai/chat",
+        json={
+            "message": "hello",
+            "history": [{"role": "assistant", "content": "previous"}],
+            "lang": "en",
+            "provider": "openrouter",
+            "api_key": "client-key-must-not-be-forwarded",
+            "model": "client/model",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["source"] == "test"
+    assert captured == {
+        "user_message": "hello",
+        "conversation_history": [{"role": "assistant", "content": "previous"}],
+        "lang": "en",
+    }
