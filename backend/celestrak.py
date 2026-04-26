@@ -44,6 +44,14 @@ MIRROR_URLS = [
 
 # TLE data cache: norad_id -> (tle_line1, tle_line2)
 CACHE_TTL_SEC = 3600  # refresh every hour
+
+# Hard ceiling on a single CelesTrak fetch wall-clock cost. httpx's per-
+# request connect timeout interacts with HTTP/2 and DNS retries in ways
+# that can stretch a cold "blocked host" fetch to tens of seconds. A 6 s
+# budget guarantees the user sees feedback fast — anything that arrived
+# before the deadline is still committed to the cache.
+FETCH_WALL_CLOCK_BUDGET_SEC = 6.0
+
 _tle_cache: Dict[int, Tuple[str, str]] = {}
 _cache_timestamp: float = 0.0
 _cache_lock: asyncio.Lock = asyncio.Lock()
@@ -251,17 +259,15 @@ async def fetch_celestrak_tle(norad_ids: Optional[List[int]] = None) -> Dict[int
                     "TLE fetch: %d total requests in parallel (CelesTrak + mirrors)",
                     len(tasks),
                 )
-                # Hard wall-clock cap on the entire fetch. httpx's per-
-                # request connect timeout interacts with HTTP/2 and DNS
-                # retries in ways that can stretch a cold "blocked host"
-                # fetch to tens of seconds. A 6 s ceiling guarantees the
-                # user sees feedback fast — anything that arrived before
-                # the deadline is still committed to the cache.
-                done, pending = await asyncio.wait(tasks, timeout=6.0)
+                # Hard wall-clock cap on the entire fetch — see
+                # FETCH_WALL_CLOCK_BUDGET_SEC for rationale.
+                done, pending = await asyncio.wait(
+                    tasks, timeout=FETCH_WALL_CLOCK_BUDGET_SEC,
+                )
                 if pending:
                     logger.warning(
-                        "TLE fetch hit 6s wall-clock cap; %d pending, %d done",
-                        len(pending), len(done),
+                        "TLE fetch hit %.1fs wall-clock cap; %d pending, %d done",
+                        FETCH_WALL_CLOCK_BUDGET_SEC, len(pending), len(done),
                     )
                     for fut in pending:
                         fut.cancel()

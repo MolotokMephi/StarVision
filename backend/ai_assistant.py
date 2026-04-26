@@ -25,9 +25,26 @@ load_dotenv(Path(__file__).resolve().with_name(".env"))
 # out-of-range speeds, or undefined action types. We clamp / drop here
 # so the client never has to defend against malformed AI output.
 
-_OPERATIONAL_NORADS = {s.norad_id for s in RUSSIAN_CUBESATS if is_operational(s.status)}
-_ALL_NORADS = {s.norad_id for s in RUSSIAN_CUBESATS}
-_KNOWN_CONSTELLATIONS = {s.constellation for s in RUSSIAN_CUBESATS}
+# Cap how many UI actions the model can issue per response. A single
+# turn that flips dozens of toggles in a row is almost always a runaway
+# generation, not a useful command — so we keep the surface predictable
+# for the user.
+MAX_ACTIONS_PER_RESPONSE = 8
+
+
+def _operational_norads() -> set:
+    """Build the operational-NORAD set lazily from the live catalog so
+    edits to satellites.py (status flips, new launches) are picked up
+    without bumping a parallel module-level constant."""
+    return {s.norad_id for s in RUSSIAN_CUBESATS if is_operational(s.status)}
+
+
+def _all_norads() -> set:
+    return {s.norad_id for s in RUSSIAN_CUBESATS}
+
+
+def _known_constellations() -> set:
+    return {s.constellation for s in RUSSIAN_CUBESATS}
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -48,9 +65,9 @@ def _validate_action(action: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
         nid = action.get("norad_id")
         if not isinstance(nid, int):
             return None, "focus_satellite.norad_id must be an integer"
-        if nid not in _ALL_NORADS:
+        if nid not in _all_norads():
             return None, f"focus_satellite: unknown NORAD {nid}"
-        if nid not in _OPERATIONAL_NORADS:
+        if nid not in _operational_norads():
             # Archival satellites cannot be tracked live.
             return None, f"focus_satellite: NORAD {nid} is archival (not operational)"
         return {"type": "focus_satellite", "norad_id": nid}, None
@@ -71,7 +88,7 @@ def _validate_action(action: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
         name = action.get("name")
         if not isinstance(name, str):
             return None, "highlight_constellation.name must be string"
-        if name not in _KNOWN_CONSTELLATIONS:
+        if name not in _known_constellations():
             return None, f"highlight_constellation: unknown group '{name}'"
         return {"type": "highlight_constellation", "name": name}, None
 
@@ -113,15 +130,15 @@ def validate_actions(actions: List[Any]) -> Tuple[List[Dict[str, Any]], List[str
         return [], ["actions must be a list"]
     accepted: List[Dict[str, Any]] = []
     rejected: List[str] = []
-    # Cap at 8 actions per response to keep the UI predictable.
-    for action in actions[:8]:
+    for action in actions[:MAX_ACTIONS_PER_RESPONSE]:
         validated, err = _validate_action(action)
         if validated is not None:
             accepted.append(validated)
         elif err:
             rejected.append(err)
-    if len(actions) > 8:
-        rejected.append(f"dropped {len(actions) - 8} trailing actions (cap=8)")
+    overflow = len(actions) - MAX_ACTIONS_PER_RESPONSE
+    if overflow > 0:
+        rejected.append(f"dropped {overflow} trailing actions (cap={MAX_ACTIONS_PER_RESPONSE})")
     return accepted, rejected
 
 # Anthropic API (via HTTP, no SDK — for simplicity)
@@ -214,6 +231,28 @@ def _build_system_prompt(lang: str = "ru") -> str:
     return SYSTEM_PROMPT_BASE.format(lang_instruction=instruction)
 
 
+_JSON_DECODER = json.JSONDecoder()
+
+
+def _scan_first_json_object(text: str) -> Optional[Dict[str, Any]]:
+    """Walk the string, asking the JSON decoder to consume an object at
+    each '{' until one parses cleanly. Avoids the previous greedy regex
+    that could splice two unrelated JSON blobs together."""
+    idx = 0
+    while True:
+        start = text.find("{", idx)
+        if start == -1:
+            return None
+        try:
+            obj, _end = _JSON_DECODER.raw_decode(text, start)
+        except json.JSONDecodeError:
+            idx = start + 1
+            continue
+        if isinstance(obj, dict):
+            return obj
+        idx = start + 1
+
+
 def _parse_ai_response(text: str) -> Optional[Dict[str, Any]]:
     """Best-effort JSON extraction from a model response. Models often
     wrap JSON in ```json … ``` fences or surround it with prose."""
@@ -221,19 +260,16 @@ def _parse_ai_response(text: str) -> Optional[Dict[str, Any]]:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
-    if json_match:
+    fence_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+    if fence_match:
+        fenced = fence_match.group(1).strip()
         try:
-            return json.loads(json_match.group(1).strip())
+            return json.loads(fenced)
         except json.JSONDecodeError:
-            pass
-    json_obj_match = re.search(r'\{[\s\S]*"message"[\s\S]*\}', text)
-    if json_obj_match:
-        try:
-            return json.loads(json_obj_match.group(0))
-        except json.JSONDecodeError:
-            pass
-    return None
+            scanned = _scan_first_json_object(fenced)
+            if scanned is not None:
+                return scanned
+    return _scan_first_json_object(text)
 
 
 async def _ask_anthropic(
