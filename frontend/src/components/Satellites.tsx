@@ -256,7 +256,7 @@ const SatMarker = memo(function SatMarker({
         <Html
           position={[0, 0.05, 0]}
           center
-          distanceFactor={8}
+          distanceFactor={3}
           style={{ pointerEvents: 'none' }}
         >
           <div className="sat-label" style={{ color }}>

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useStore } from '../hooks/useStore';
 import { t, tConstellation } from '../i18n';
 import { fetchTLE, refreshTLE, ApiError } from '../services/api';
-import { formatBackendError } from '../errors';
 import { CONSTELLATION_COLORS } from '../constants';
 
 const SPEED_PRESETS = [
@@ -28,64 +27,108 @@ export function ControlPanel() {
     commRangeKm, setCommRangeKm,
     orbitalPlanes, setOrbitalPlanes,
     setTleData,
-    resetView,
+    setTleMeta,
+    pushToast,
+    logEvent,
     tleMeta,
-    setUserError,
+    resetView,
   } = useStore();
 
   const [tleLoading, setTleLoading] = useState(false);
-  const [tleError, setTleError] = useState<string | null>(null);
+
+  const _applyTleResponse = (
+    requested: 'embedded' | 'celestrak',
+    res: Awaited<ReturnType<typeof fetchTLE>>,
+    opts: { refreshed?: boolean } = {},
+  ) => {
+    setTleData(res.tle_data);
+    setTleMeta(res.meta);
+    // Commit the source choice only after a successful response. This prevents
+    // the UI from flipping to "CelesTrak" while the fetch is still in flight or
+    // ultimately fails.
+    setTleSource(requested);
+
+    const eff = res.meta.effective_source;
+    if (requested === 'celestrak' && eff === 'embedded_fallback') {
+      pushToast({
+        level: 'warning',
+        title: t('event.tleFallback', lang),
+        detail: lang === 'ru'
+          ? 'CelesTrak недоступен; показаны встроенные TLE. Перепроверьте сеть.'
+          : 'CelesTrak unavailable; showing embedded TLE. Check your network.',
+      });
+      logEvent({ level: 'warning', kind: 'tle_fallback', message: t('event.tleFallback', lang) });
+    } else if (eff === 'celestrak_partial') {
+      pushToast({
+        level: 'warning',
+        title: t('event.tlePartial', lang),
+        detail: `${res.meta.fallback_count} / ${res.meta.total} embedded`,
+      });
+      logEvent({
+        level: 'warning',
+        kind: 'tle_fallback',
+        message: t('event.tlePartial', lang),
+        details: `${res.meta.fallback_count}/${res.meta.total}`,
+      });
+    } else if (opts.refreshed) {
+      pushToast({
+        level: 'success',
+        title: t('event.tleRefreshed', lang),
+        detail: `${res.meta.live_count}/${res.meta.total} live`,
+      });
+      logEvent({
+        level: 'success',
+        kind: 'tle_refresh',
+        message: t('event.tleRefreshed', lang),
+        details: `${res.meta.live_count}/${res.meta.total}`,
+      });
+    } else {
+      logEvent({
+        level: 'info',
+        kind: 'tle_source_switched',
+        message: `${t('event.tleLoaded', lang)}: ${eff}`,
+        details: `${res.meta.total} TLE`,
+      });
+    }
+  };
 
   const handleTleSourceChange = async (source: 'embedded' | 'celestrak') => {
-    setTleSource(source);
+    if (tleLoading || tleSource === source) return;
     setTleLoading(true);
-    setTleError(null);
     try {
       const res = await fetchTLE(source);
-      setTleData(res.tle_data, res.meta);
-      if (res.meta?.fallback && res.meta?.error) {
-        const reason = formatBackendError(res.meta.error, lang);
-        const msg = `${t('control.tleFallbackWarn', lang)} (${reason})`;
-        setTleError(msg);
-        setUserError(msg);
-      }
+      _applyTleResponse(source, res);
     } catch (err) {
-      const detail = (err as ApiError)?.detail || (err as Error)?.message || 'unknown';
-      const msg = t('control.tleError', lang, { error: detail });
-      setTleError(msg);
-      setUserError(msg);
+      const detail = err instanceof ApiError ? err.detail : String(err);
+      pushToast({
+        level: 'error',
+        title: t('event.apiError', lang),
+        detail,
+      });
+      logEvent({ level: 'error', kind: 'api_error', message: 'fetchTLE failed', details: detail });
+      // Intentionally keep current tleSource/data on failure.
     } finally {
       setTleLoading(false);
     }
   };
 
   const handleTleRefresh = async () => {
+    if (tleLoading) return;
     setTleLoading(true);
-    setTleError(null);
     try {
       const res = await refreshTLE();
-      setTleData(res.tle_data, res.meta);
-      setTleSource('celestrak');
-      if (res.meta?.fallback && res.meta?.error) {
-        const reason = formatBackendError(res.meta.error, lang);
-        const msg = `${t('control.tleFallbackWarn', lang)} (${reason})`;
-        setTleError(msg);
-        setUserError(msg);
-      }
+      _applyTleResponse('celestrak', res, { refreshed: true });
     } catch (err) {
-      const detail = (err as ApiError)?.detail || (err as Error)?.message || 'unknown';
-      const msg = t('control.tleError', lang, { error: detail });
-      setTleError(msg);
-      setUserError(msg);
+      const detail = err instanceof ApiError ? err.detail : String(err);
+      pushToast({
+        level: 'error',
+        title: t('event.apiError', lang),
+        detail,
+      });
+      logEvent({ level: 'error', kind: 'api_error', message: 'refreshTLE failed', details: detail });
     } finally {
       setTleLoading(false);
     }
-  };
-
-  const formatCacheAge = (sec: number | null): string => {
-    if (sec === null) return t('control.tleNeverFetched', lang);
-    if (sec < 60) return t('control.tleAgeSec', lang, { sec: Math.round(sec) });
-    return t('control.tleAgeMin', lang, { min: Math.round(sec / 60) });
   };
 
   const planesWord = lang === 'ru'
@@ -220,17 +263,20 @@ export function ControlPanel() {
               {t('control.tleLoading', lang)}
             </p>
           )}
-          {tleError && !tleLoading && (
-            <p className="text-[10px] text-red-400 font-mono mt-1 break-words">
-              {tleError}
-            </p>
-          )}
-          {tleMeta && !tleLoading && !tleError && tleSource === 'celestrak' && (
-            <p className="text-[9px] text-star-600 font-mono mt-1">
-              {tleMeta.fallback ? '⚠ ' : ''}
-              {tleMeta.effective_source} · {formatCacheAge(tleMeta.cache_age_sec)}
-              {tleMeta.stale ? ' · STALE' : ''}
-            </p>
+          {!tleLoading && tleSource === 'celestrak' && tleMeta && (
+            tleMeta.effective_source === 'embedded_fallback' ? (
+              <p className="text-[9px] text-amber-400 font-mono mt-1">
+                ⚠ {t('header.sourceFallback', lang)} — {t('event.tleFallback', lang)}
+              </p>
+            ) : tleMeta.effective_source === 'celestrak_partial' ? (
+              <p className="text-[9px] text-amber-300 font-mono mt-1">
+                ⚠ {tleMeta.live_count}/{tleMeta.total} live, {tleMeta.fallback_count} embedded
+              </p>
+            ) : (
+              <p className="text-[9px] text-green-400 font-mono mt-1">
+                ● {tleMeta.live_count}/{tleMeta.total} live
+              </p>
+            )
           )}
         </div>
       )}

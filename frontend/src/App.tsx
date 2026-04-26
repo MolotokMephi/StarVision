@@ -4,25 +4,30 @@ import { ControlPanel } from './components/ControlPanel';
 import { SatelliteInfoPanel } from './components/SatelliteInfoPanel';
 import { StarAIChat } from './components/StarAIChat';
 import { Header } from './components/Header';
-import { ErrorBanner } from './components/ErrorBanner';
+import { ErrorToast } from './components/ErrorToast';
+import { EventLog } from './components/EventLog';
+import { MissionDashboard } from './components/MissionDashboard';
+import { CollisionPanel } from './components/CollisionPanel';
+import { OptimizerPanel } from './components/OptimizerPanel';
 import { useStore } from './hooks/useStore';
 import {
-  fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE, fetchHealth,
-  ApiError,
+  fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE, fetchHealth, ApiError,
 } from './services/api';
 import { getSimTime } from './simClock';
-import { selectRealSatellites } from './selection';
-import { formatBackendError } from './errors';
-import type { BackendHealth } from './types';
-
-const HEALTH_POLL_MS = 20_000;
+import { CONSTELLATION_NAMES } from './constants';
+import { t } from './i18n';
 
 export default function App() {
   const {
+    lang,
     satellites, setSatellites,
     positions, setPositions,
     orbitPaths, setOrbitPath,
     tleData, setTleData,
+    setTleMeta,
+    setBackendHealth,
+    pushToast,
+    logEvent,
     timeSpeed,
     selectedSatellite,
     activeLinksCount,
@@ -30,102 +35,96 @@ export default function App() {
     orbitAltitudeKm,
     activeConstellations,
     tleSource,
-    setHealth,
-    setUserError,
-    lang,
+    backendReachable,
   } = useStore();
+
+  const reachableRef = useRef(backendReachable);
+  reachableRef.current = backendReachable;
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load satellite list (once)
+  // Load satellite list
   useEffect(() => {
     fetchSatellites()
       .then((res) => setSatellites(res.satellites))
-      .catch((err: ApiError) => {
-        console.error('Satellite fetch error:', err);
-        setUserError(
-          lang === 'en'
-            ? `Catalog fetch failed: ${err.detail || err.message}`
-            : `Не удалось загрузить каталог: ${err.detail || err.message}`,
-        );
+      .catch((err) => {
+        const detail = err instanceof ApiError ? err.detail : String(err);
+        pushToast({ level: 'error', title: t('event.apiError', lang), detail });
+        logEvent({ level: 'error', kind: 'api_error', message: 'fetchSatellites failed', details: detail });
       });
+  }, [setSatellites, pushToast, logEvent, lang]);
+
+  // Load TLE for client-side SGP4
+  useEffect(() => {
+    fetchTLE()
+      .then((res) => {
+        setTleData(res.tle_data);
+        setTleMeta(res.meta);
+        if (res.meta.effective_source === 'embedded_fallback') {
+          pushToast({
+            level: 'warning',
+            title: t('event.tleFallback', lang),
+            detail: `${res.meta.total} embedded`,
+          });
+          logEvent({ level: 'warning', kind: 'tle_fallback', message: t('event.tleFallback', lang) });
+        } else {
+          logEvent({
+            level: 'info',
+            kind: 'tle_loaded',
+            message: `${t('event.tleLoaded', lang)}: ${res.meta.effective_source}`,
+            details: `${res.meta.total} TLE`,
+          });
+        }
+      })
+      .catch((err) => {
+        const detail = err instanceof ApiError ? err.detail : String(err);
+        pushToast({ level: 'error', title: t('event.apiError', lang), detail });
+        logEvent({ level: 'error', kind: 'api_error', message: 'fetchTLE failed', details: detail });
+      });
+    // deliberately run once on mount; locale changes don't require refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load TLE for client-side SGP4 (respects selected source)
-  useEffect(() => {
-    fetchTLE(tleSource)
-      .then((res) => {
-        setTleData(res.tle_data, res.meta);
-        if (res.meta?.fallback) {
-          const reason = formatBackendError(res.meta.error, lang)
-            || (lang === 'en' ? 'CelesTrak unavailable' : 'CelesTrak недоступен');
-          setUserError(
-            lang === 'en' ? `TLE fallback: ${reason}` : `TLE-запаска: ${reason}`,
-          );
-        }
-      })
-      .catch((err: ApiError) => {
-        console.error('TLE fetch error:', err);
-        setUserError(
-          lang === 'en'
-            ? `TLE fetch failed: ${err.detail || err.message}`
-            : `Не удалось загрузить TLE: ${err.detail || err.message}`,
-        );
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tleSource]);
-
-  // Health polling: drives the real ONLINE / DEGRADED / OFFLINE indicator.
+  // Health polling — lightweight, kicks the status indicator.
   useEffect(() => {
     let cancelled = false;
-    const run = async () => {
+    const tick = async () => {
       try {
         const h = await fetchHealth();
         if (cancelled) return;
-        const health: BackendHealth = {
-          status: h.status,
-          reasons: h.reasons,
-          timestamp: h.timestamp,
-          checked_at: Date.now(),
-          error: null,
-        };
-        setHealth(health);
+        setBackendHealth(h, true);
+        if (!reachableRef.current) {
+          logEvent({ level: 'success', kind: 'health_restored', message: t('event.healthRestored', lang) });
+          pushToast({ level: 'success', title: t('event.healthRestored', lang) });
+        }
       } catch (err) {
         if (cancelled) return;
-        setHealth({
-          status: 'offline',
-          reasons: ['unreachable'],
-          timestamp: null,
-          checked_at: Date.now(),
-          error: (err as Error)?.message || 'unreachable',
-        });
+        setBackendHealth(null, false);
+        if (reachableRef.current) {
+          const detail = err instanceof ApiError ? err.detail : String(err);
+          logEvent({ level: 'error', kind: 'health_degraded', message: t('event.healthDegraded', lang), details: detail });
+          pushToast({ level: 'error', title: t('event.healthDegraded', lang), detail });
+        }
       }
     };
-    run();
-    const id = setInterval(run, HEALTH_POLL_MS);
+    tick();
+    const id = setInterval(tick, 20000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [setHealth]);
+  }, [setBackendHealth, pushToast, logEvent, lang]);
 
-  // Load positions (periodic — fallback for info panel)
-  // Use simulated time to stay in sync with the 3D scene
+  // Load positions (periodic — fallback for info panel).
+  // Use simulated time to stay in sync with the 3D scene.
   const loadPositions = useCallback(async () => {
     try {
       const simTimestamp = new Date(getSimTime()).toISOString();
       const res = await fetchPositions(simTimestamp, tleSource);
       setPositions(res.positions);
     } catch (err) {
-      // Position polling failures are not fatal (client-side SGP4 keeps
-      // running) but must not be silent — surface once.
-      console.error('Position fetch error:', err);
-      const msg = (err as ApiError)?.detail || (err as Error)?.message || 'unknown';
-      setUserError(
-        lang === 'en'
-          ? `Position poll failed: ${msg}`
-          : `Опрос позиций не удался: ${msg}`,
-      );
+      // Don't spam toasts on every tick — just log. Health polling surfaces
+      // actual backend outages with a single banner.
+      if (!(err instanceof ApiError)) return;
     }
-  }, [tleSource, setPositions, setUserError, lang]);
+  }, [tleSource, setPositions]);
 
   useEffect(() => {
     loadPositions();
@@ -139,48 +138,49 @@ export default function App() {
   }, [timeSpeed, loadPositions]);
 
   // Load orbit when a satellite is selected (skip virtual NORAD 90000+).
-  // Archival satellites are rejected by the backend (409) — show the user
-  // why instead of silently dropping the request.
+  // Archival satellites return 409 from the backend — swallow that silently
+  // (the UI already marks them as archival; a toast would be noise).
   useEffect(() => {
-    if (!selectedSatellite || selectedSatellite >= 90000) return;
-    if (orbitPaths[selectedSatellite]) return;
-    const sat = satellites.find((s) => s.norad_id === selectedSatellite);
-    if (sat && sat.operational === false) return;
-    fetchOrbitPath(selectedSatellite, 180, 60, tleSource)
-      .then((res) => setOrbitPath(res.norad_id, res.path))
-      .catch((err: ApiError) => {
-        console.error('Orbit fetch error:', err);
-        if (err.status !== 409) {
-          setUserError(
-            lang === 'en'
-              ? `Orbit fetch failed: ${err.detail || err.message}`
-              : `Ошибка загрузки орбиты: ${err.detail || err.message}`,
-          );
-        }
-      });
-  }, [selectedSatellite, tleSource, satellites, orbitPaths, setOrbitPath, setUserError, lang]);
+    if (selectedSatellite && selectedSatellite < 90000 && !orbitPaths[selectedSatellite]) {
+      fetchOrbitPath(selectedSatellite, 180, 60, tleSource)
+        .then((res) => setOrbitPath(res.norad_id, res.path))
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 409) return;
+          const detail = err instanceof ApiError ? err.detail : String(err);
+          logEvent({ level: 'warning', kind: 'api_error', message: 'orbit fetch failed', details: detail });
+        });
+    }
+  }, [selectedSatellite, tleSource, orbitPaths, setOrbitPath, logEvent]);
 
-  // Preload orbits for all operational satellites (batches of 4 to reduce load)
+  // Preload orbits for all satellites (batches of 4 to reduce load).
+  // Re-fetches when TLE source changes so tracks stay consistent with live data.
   useEffect(() => {
     if (satellites.length === 0) return;
     let cancelled = false;
-    const operational = satellites.filter((s) => s.operational);
     const loadBatched = async () => {
       const batchSize = 4;
-      for (let i = 0; i < operational.length; i += batchSize) {
+      for (let i = 0; i < satellites.length; i += batchSize) {
         if (cancelled) return;
-        const batch = operational.slice(i, i + batchSize);
+        const batch = satellites.slice(i, i + batchSize);
         await Promise.allSettled(
-          batch.map((sat) =>
-            fetchOrbitPath(sat.norad_id, 120, 60, tleSource)
-              .then((res) => setOrbitPath(res.norad_id, res.path))
-          )
+          batch
+            // Skip archival — backend returns 409 for those.
+            .filter((sat) => sat.status !== 'deorbited')
+            .map((sat) =>
+              fetchOrbitPath(sat.norad_id, 120, 60, tleSource)
+                .then((res) => setOrbitPath(res.norad_id, res.path))
+                .catch((err) => {
+                  if (err instanceof ApiError && err.status === 409) return;
+                  // Don't toast for each failed orbit; log only.
+                  logEvent({ level: 'warning', kind: 'api_error', message: `orbit ${sat.norad_id} failed` });
+                })
+            )
         );
       }
     };
     loadBatched();
     return () => { cancelled = true; };
-  }, [satellites, tleSource, setOrbitPath]);
+  }, [satellites, tleSource, setOrbitPath, logEvent]);
 
   // Map norad_id → constellation
   const satelliteConstellations = useMemo(() => {
@@ -189,37 +189,43 @@ export default function App() {
     return map;
   }, [satellites]);
 
-  // Operational positions only — backend already filters archival sats
-  // out, but we guard locally so the counters never claim a deorbited
-  // spacecraft is "live".
-  const operationalPositions = useMemo(() => {
-    const ok = new Set(satellites.filter((s) => s.operational).map((s) => s.norad_id));
-    return positions.filter((p) => ok.has(p.norad_id));
-  }, [positions, satellites]);
-
-  // Unified selection — the same function Satellites/ISL/Coverage use.
-  // `displayedCount` = what the scene actually renders. `activeCount` =
-  // operational spacecraft within that set. They are equal by construction
-  // now (archival sats are filtered upstream), but we keep both so the
-  // header can distinguish "11/14" (virtual-mode subsample) from
-  // "14/14" (all operational shown).
+  // Count displayed satellites based on mode (virtual / real)
   const displayedCount = useMemo(() => {
     if (orbitAltitudeKm > 0) {
-      return satelliteCount; // virtual mode: exactly what we render
+      // Virtual mode: all satelliteCount are "active", filtered by constellations
+      let count = 0;
+      for (let i = 0; i < satelliteCount; i++) {
+        if (activeConstellations.includes(CONSTELLATION_NAMES[i % CONSTELLATION_NAMES.length])) count++;
+      }
+      return count;
     }
-    return selectRealSatellites(
-      operationalPositions,
-      satelliteCount,
-      activeConstellations,
-      satelliteConstellations,
-    ).length;
-  }, [orbitAltitudeKm, satelliteCount, activeConstellations, operationalPositions, satelliteConstellations]);
+    // Real mode: filter by active constellations, then take up to satelliteCount
+    const filtered = positions.filter((p) => {
+      const c = satelliteConstellations[p.norad_id];
+      return activeConstellations.includes(c);
+    });
+    return Math.min(satelliteCount, filtered.length);
+  }, [orbitAltitudeKm, satelliteCount, activeConstellations, positions, satelliteConstellations]);
+
+  const activeCount = useMemo(() => {
+    if (orbitAltitudeKm > 0) return displayedCount;
+    // In real mode, count active satellites among the displayed set
+    const filtered = positions.filter((p) => {
+      const c = satelliteConstellations[p.norad_id];
+      return activeConstellations.includes(c);
+    });
+    const displayed = filtered.slice(0, satelliteCount);
+    return displayed.filter(p => {
+      const sat = satellites.find(s => s.norad_id === p.norad_id);
+      return sat?.status === 'active';
+    }).length;
+  }, [orbitAltitudeKm, displayedCount, positions, satelliteConstellations, activeConstellations, satelliteCount, satellites]);
 
   return (
     <div className="relative w-full h-full">
       {/* 3D Canvas */}
       <Scene3D
-        positions={operationalPositions}
+        positions={positions}
         tleData={tleData}
         orbitPaths={orbitPaths}
         satelliteConstellations={satelliteConstellations}
@@ -228,19 +234,28 @@ export default function App() {
       {/* Header */}
       <Header
         satelliteCount={displayedCount}
-        activeCount={displayedCount}
+        activeCount={activeCount}
         timeSpeed={timeSpeed}
         activeLinksCount={activeLinksCount}
       />
 
-      {/* Error banner */}
-      <ErrorBanner />
-
       {/* UI Panels */}
       <ControlPanel />
-      <SatelliteInfoPanel satellites={satellites} positions={operationalPositions} />
-      <StarAIChat />
+      <SatelliteInfoPanel satellites={satellites} positions={positions} />
 
+      {/* Engineering panels — docked on the right, above the StarAI chat button */}
+      <div className="absolute bottom-24 right-4 z-10 flex flex-col gap-2 items-end pointer-events-none">
+        <MissionDashboard
+          displayedCount={displayedCount}
+          activeCount={activeCount}
+        />
+        <CollisionPanel />
+        <OptimizerPanel />
+        <EventLog />
+      </div>
+
+      <StarAIChat />
+      <ErrorToast />
     </div>
   );
 }

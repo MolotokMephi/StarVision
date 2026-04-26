@@ -1,5 +1,8 @@
 /**
  * api.ts — StarVision Backend API client.
+ *
+ * All fetchers throw `ApiError` on non-2xx, which callers can inspect for
+ * status/detail rather than losing information in a generic Error.
  */
 
 import type {
@@ -9,6 +12,8 @@ import type {
   APIChatResponse,
   APITleResponse,
   APIHealthResponse,
+  APICollisionsResponse,
+  APIOptimizerResponse,
   ChatMessage,
 } from '../types';
 
@@ -32,8 +37,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
       ...options,
     });
   } catch (e) {
-    // Network / CORS failure — surface as offline, not a parse error.
-    throw new ApiError(0, (e as Error)?.message || 'network error');
+    throw new ApiError(0, e instanceof Error ? e.message : 'network error');
   }
   if (!res.ok) {
     let detail = res.statusText;
@@ -41,7 +45,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
       const body = await res.json();
       if (body?.detail) detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail);
     } catch {
-      // non-JSON body, keep statusText
+      // body may not be JSON; keep statusText
     }
     throw new ApiError(res.status, detail);
   }
@@ -85,14 +89,40 @@ export async function fetchTLE(
   return fetchJSON<APITleResponse>(`/tle?source=${source}`);
 }
 
-export async function refreshTLE(): Promise<APITleResponse & { refreshed: boolean }> {
-  return fetchJSON<APITleResponse & { refreshed: boolean }>('/tle/refresh', {
-    method: 'POST',
-  });
+export async function refreshTLE(): Promise<APITleResponse> {
+  return fetchJSON<APITleResponse>('/tle/refresh', { method: 'POST' });
 }
 
 export async function fetchHealth(): Promise<APIHealthResponse> {
   return fetchJSON<APIHealthResponse>('/health');
+}
+
+export async function fetchCollisions(
+  thresholdKm = 100,
+  hoursAhead = 24,
+  source: 'embedded' | 'celestrak' = 'embedded',
+): Promise<APICollisionsResponse> {
+  const params = new URLSearchParams({
+    threshold_km: String(thresholdKm),
+    hours_ahead: String(hoursAhead),
+  });
+  if (source !== 'embedded') params.set('source', source);
+  return fetchJSON<APICollisionsResponse>(`/collisions?${params}`);
+}
+
+export async function fetchOptimizePlanes(opts: {
+  num_satellites: number;
+  num_planes: number;
+  altitude_km: number;
+  inclination_deg?: number;
+}): Promise<APIOptimizerResponse> {
+  const params = new URLSearchParams({
+    num_satellites: String(opts.num_satellites),
+    num_planes: String(opts.num_planes),
+    altitude_km: String(opts.altitude_km),
+    inclination_deg: String(opts.inclination_deg ?? 55.0),
+  });
+  return fetchJSON<APIOptimizerResponse>(`/optimize-planes?${params}`);
 }
 
 // ── StarAI ──────────────────────────────────────────────────────────
@@ -111,4 +141,3 @@ export async function sendChatMessage(
     }),
   });
 }
-

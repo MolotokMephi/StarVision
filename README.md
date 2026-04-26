@@ -12,6 +12,68 @@
 
 ---
 
+## Positioning / Позиционирование
+
+StarVision is an **interactive 3D prototype** of a digital twin for a Russian
+CubeSat constellation. It combines real open-data TLEs, a teaching-oriented
+Walker mode, inter-satellite-link visualisation, coverage footprints,
+collision forecasting, and an AI-driven UI. It is **not** a production
+ground-segment control system; the value is analysis, education, and
+demonstration.
+
+StarVision — интерактивный 3D-прототип цифрового двойника группировки
+российских кубсатов. Он объединяет реальные открытые TLE, учебный
+Walker-режим, визуализацию межспутниковых связей, coverage, прогноз
+сближений и AI-управление интерфейсом. Это **не** промышленная система
+управления КА; ценность — анализ, обучение и демонстрация.
+
+---
+
+## Hackathon Requirements Compliance / Соответствие ТЗ
+
+| Requirement / Требование | Implementation / Реализация | Location / Где смотреть |
+|---|---|---|
+| 3–15 satellites in 3D | Slider 3..15 clamps at store level | [ControlPanel.tsx](frontend/src/components/ControlPanel.tsx), [useStore.ts](frontend/src/hooks/useStore.ts), [clamps.ts](frontend/src/lib/clamps.ts) |
+| Orbital motion modeling | Client-side SGP4 via `satellite.js` + server-side python-sgp4 | [Satellites.tsx](frontend/src/components/Satellites.tsx), [orbital.py](backend/orbital.py) |
+| Inter-satellite links | Per-frame distance + Earth-shadow LOS, object pooling | [InterSatelliteLinks.tsx](frontend/src/components/InterSatelliteLinks.tsx) |
+| UI parameters (≥ 3) | Count, altitude (TLE or 400–2000 km), comm range 50–2000 km, speed, planes, coverage, labels, constellation filter | [ControlPanel.tsx](frontend/src/components/ControlPanel.tsx) |
+| Open data sources | CelesTrak TLE + embedded fallback with explicit meta | [celestrak.py](backend/celestrak.py), Header/MissionDashboard |
+| Performance | Throttled raycasting, object pool, adaptive DPR | See "Performance" section |
+| RU / EN interface | Full i18n across every user-facing string | [i18n.ts](frontend/src/i18n.ts) |
+| Public repo + README + licence | MIT-compatible license, RU/EN docs | [LICENSE](LICENSE), [docs/](docs/) |
+| **Bonus: collision prediction** | `GET /api/collisions` with threshold + horizon | [orbital.py `predict_collisions`](backend/orbital.py), [CollisionPanel.tsx](frontend/src/components/CollisionPanel.tsx) |
+| **Bonus: plane optimisation** | Walker-δ optimiser, UI can apply result | [orbital.py `optimize_plane_distribution`](backend/orbital.py), [OptimizerPanel.tsx](frontend/src/components/OptimizerPanel.tsx) |
+| **Bonus: AI in UI** | StarAI whitelisted actions; clamps defend invalid values | [ai_assistant.py](backend/ai_assistant.py), [StarAIChat.tsx](frontend/src/components/StarAIChat.tsx) |
+
+---
+
+## Data Trust / Доверие к данным
+
+- **Transactional source switching.** The TLE source indicator commits only
+  after a successful fetch — a failing CelesTrak call keeps the previous
+  state and surfaces a visible fallback badge. See `handleTleSourceChange`
+  in [ControlPanel.tsx](frontend/src/components/ControlPanel.tsx).
+- **Effective source meta.** Every `/api/tle` response returns
+  `meta.effective_source ∈ {embedded, celestrak, celestrak_partial, embedded_fallback}`
+  plus `live_count`, `fallback_count`, and `fetched_at`. The Header and
+  Mission Dashboard render this meta directly — no silent fallbacks.
+- **Operational filter.** `/api/positions`, `/api/links`, `/api/tle`,
+  `/api/collisions` exclude satellites with `status == "deorbited"` by
+  default. `/api/orbit/{id}` and `/api/orbital-elements/{id}` return `409`
+  for archival spacecraft to make the UI contract explicit. Covered by
+  [test_operational_filter.py](backend/tests/test_operational_filter.py).
+- **Clamped setters.** All numeric setters in the Zustand store go through
+  pure clamp helpers in [clamps.ts](frontend/src/lib/clamps.ts) so no path
+  (UI sliders, StarAI actions, devtools) can write out-of-range values.
+- **Visible errors.** API failures flow through an event log + toast layer
+  instead of silent `console.error` calls. See
+  [ErrorToast.tsx](frontend/src/components/ErrorToast.tsx),
+  [EventLog.tsx](frontend/src/components/EventLog.tsx).
+- **Health polling.** The frontend polls `/api/health` every 20 s and flips
+  the status indicator to `OFFLINE` the moment it can't reach the backend.
+
+---
+
 ## About / О проекте
 
 **StarVision** is a digital twin of a Russian CubeSat constellation featuring:
@@ -57,7 +119,7 @@
 | Satellite count / Кол-во КА | 3–15 | Uniform selection from catalog / Равномерная выборка |
 | Orbit altitude / Высота орбиты | TLE / 400–2000 km | TLE = real data; otherwise virtual Walker / TLE = реальные; иначе виртуальные |
 | TLE source / Источник TLE | Embedded / CelesTrak | Demo data or live CelesTrak / Демо или актуальные |
-| Comm range / Дальность связи | 50–10,000 km | ISL visibility threshold / Порог видимости МСС |
+| Comm range / Дальность связи | 50–2,000 km | ISL visibility threshold / Порог видимости МСС |
 | Sim speed / Скорость | 1×–200× | Time acceleration / Ускорение времени |
 | ISL links / МСС | on/off | Show/hide inter-satellite links / Показать/скрыть МСС |
 | Orbital tracks / Треки | on/off | Show/hide orbit traces / Показать/скрыть орбиты |
@@ -242,14 +304,16 @@ StarVision/
 
 | Method / Метод | URL | Description / Описание |
 |---|---|---|
+| GET | `/api/health` | Liveness + catalog + CelesTrak cache age / Статус |
 | GET | `/api/satellites` | List of all 15 spacecraft / Список всех 15 КА |
-| GET | `/api/positions` | Current ECI coordinates / Текущие ECI-координаты |
-| GET | `/api/tle?source=embedded\|celestrak` | TLE data / TLE-данные |
-| POST | `/api/tle/refresh` | Force refresh TLE cache / Обновить TLE-кэш |
-| GET | `/api/orbit/{norad_id}` | Orbital track (120 pts, 60s step) / Орбитальный трек |
-| GET | `/api/links?comm_range_km=3000` | ISL with LOS check / МСС с LOS-проверкой |
-| GET | `/api/orbital-elements/{norad_id}` | Keplerian elements / Кеплеровы элементы |
+| GET | `/api/positions` | Current ECI coordinates (operational only) / Позиции |
+| GET | `/api/tle?source=embedded\|celestrak` | TLE + meta (effective source, live/fallback counts) |
+| POST | `/api/tle/refresh` | Force refresh TLE cache from CelesTrak |
+| GET | `/api/orbit/{norad_id}` | Orbital track — 409 for archival / трек, 409 для архивных |
+| GET | `/api/links?comm_range_km=2000` | ISL with LOS check, 50–2000 km range |
+| GET | `/api/orbital-elements/{norad_id}` | Keplerian elements — 409 for archival |
 | GET | `/api/collisions` | Close approach predictions / Прогноз сближений |
+| GET | `/api/optimize-planes` | Walker-δ optimiser / Оптимизатор Walker |
 | POST | `/api/starai/chat` | StarAI chat with JSON UI commands / Чат StarAI |
 | GET | `/api/config` | Initial frontend config / Конфигурация фронтенда |
 

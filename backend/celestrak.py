@@ -297,6 +297,31 @@ async def get_tle_by_source(source: str = "embedded") -> Dict[str, object]:
     Callers (API layer) are expected to surface `meta` to the client so
     end-users can see data freshness and any upstream failures.
     """
+    def _with_meta(
+        *,
+        requested_source: str,
+        effective_source: str,
+        fallback: bool,
+        error: Optional[str],
+        tle_data: List[dict],
+        fallback_count: int,
+        live_count: int,
+        network_error: bool,
+    ) -> Dict[str, object]:
+        return {
+            "requested_source": requested_source,
+            "effective_source": effective_source,
+            "fallback": fallback,
+            "error": error,
+            "operational_only": True,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "network_error": network_error,
+            "fallback_count": fallback_count,
+            "live_count": live_count,
+            "total": len(tle_data),
+            **get_cache_status(),
+        }
+
     cache_status = get_cache_status()
 
     if source == "celestrak":
@@ -309,20 +334,24 @@ async def get_tle_by_source(source: str = "embedded") -> Dict[str, object]:
             logger.exception("CelesTrak fetch failed")
             err = _classify_network_error(exc)
             tle_list = _get_embedded_tle_list(tag="embedded_fallback")
-            cache_status = get_cache_status()
             return {
                 "tle_data": tle_list,
-                "meta": {
-                    "requested_source": "celestrak",
-                    "effective_source": "embedded_fallback",
-                    "fallback": True,
-                    "error": err,
-                    **cache_status,
-                },
+                "meta": _with_meta(
+                    requested_source="celestrak",
+                    effective_source="embedded_fallback",
+                    fallback=True,
+                    error=err,
+                    tle_data=tle_list,
+                    fallback_count=len(tle_list),
+                    live_count=0,
+                    network_error=True,
+                ),
             }
 
         result: List[dict] = []
         any_fallback = False
+        fallback_count = 0
+        live_count = 0
         for s in RUSSIAN_CUBESATS:
             if not s.tle_line1 or not s.tle_line2:
                 continue
@@ -332,10 +361,12 @@ async def get_tle_by_source(source: str = "embedded") -> Dict[str, object]:
             if s.norad_id in live_tle:
                 line1, line2 = live_tle[s.norad_id]
                 entry_source = "celestrak"
+                live_count += 1
             else:
                 line1, line2 = s.tle_line1, s.tle_line2
                 entry_source = "embedded_fallback"
                 any_fallback = True
+                fallback_count += 1
             result.append({
                 "norad_id": s.norad_id,
                 "name": s.name,
@@ -354,25 +385,32 @@ async def get_tle_by_source(source: str = "embedded") -> Dict[str, object]:
 
         return {
             "tle_data": result,
-            "meta": {
-                "requested_source": "celestrak",
-                "effective_source": effective,
-                "fallback": any_fallback or not result,
-                "error": fresh_status.get("last_fetch_error") if not fresh_status.get("last_fetch_ok") else None,
-                **fresh_status,
-            },
+            "meta": _with_meta(
+                requested_source="celestrak",
+                effective_source=effective,
+                fallback=any_fallback or not result,
+                error=fresh_status.get("last_fetch_error") if not fresh_status.get("last_fetch_ok") else None,
+                tle_data=result,
+                fallback_count=fallback_count,
+                live_count=live_count,
+                network_error=not bool(fresh_status.get("last_fetch_ok")),
+            ),
         }
 
     # Embedded
+    tle_list = _get_embedded_tle_list(tag="embedded")
     return {
-        "tle_data": _get_embedded_tle_list(tag="embedded"),
-        "meta": {
-            "requested_source": "embedded",
-            "effective_source": "embedded",
-            "fallback": False,
-            "error": None,
-            **cache_status,
-        },
+        "tle_data": tle_list,
+        "meta": _with_meta(
+            requested_source="embedded",
+            effective_source="embedded",
+            fallback=False,
+            error=None,
+            tle_data=tle_list,
+            fallback_count=0,
+            live_count=0,
+            network_error=False,
+        ),
     }
 
 

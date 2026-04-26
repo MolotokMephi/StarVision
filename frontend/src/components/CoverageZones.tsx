@@ -1,66 +1,99 @@
 /**
  * CoverageZones.tsx
- * Satellite-to-Earth coverage cones.
+ * Physically-sized ground coverage footprints on a near-surface globe shell.
  *
- * For every active satellite we render a translucent cone whose apex
- * is the satellite and whose base is the horizon circle projected onto
- * Earth's surface. The cone volume is the set of sight-lines from the
- * satellite down to every point on the ground it can see at ≥ 0°
- * elevation (angular radius from Earth center: θ = arccos(R_E / r)).
- *
- * A brighter line loop outlines the base ring on the surface.
- *
- * Toggle architecture:
- *   The outer component subscribes to `showCoverage` and returns null
- *   when the toggle is off. That unmounts the inner component, drops
- *   its pool, disposes all GPU resources, and cancels useFrame — no
- *   stuck state, no StrictMode ghosts, no wasted work. Flipping the
- *   toggle back on remounts a fresh inner component that updates on
- *   the very next frame.
+ * Rendering uses a shader over a transparent sphere shell. The shader colors
+ * only fragments inside the satellite horizon angle, so the footprint follows
+ * the Earth's curvature without relying on fragile near-surface cap geometry.
  */
-import { useRef, useEffect } from 'react';
+
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import {
-  BufferGeometry, Float32BufferAttribute,
-  Group, Mesh, MeshBasicMaterial,
-  LineLoop, LineBasicMaterial,
-  DoubleSide,
-} from 'three';
+import { Color, FrontSide, Mesh, ShaderMaterial, Vector3 } from 'three';
 import { twoline2satrec, propagate } from 'satellite.js';
 import { getSimTime } from '../simClock';
 import { useStore } from '../hooks/useStore';
 import { CONSTELLATION_COLORS, CONSTELLATION_NAMES } from '../constants';
-import { selectRealSatellites } from '../selection';
-import type { TLEData } from '../types';
+import type { SatellitePosition, TLEData } from '../types';
 
-// ── Constants ─────────────────────────────────────────────────────────
-const R_E      = 6371.0;         // Earth radius (km)
-const MU       = 398600.4418;    // GM (km³/s²)
-const SCALE    = 1 / R_E;        // km → scene units (Earth radius = 1)
-const SURF     = 1.001;          // Tiny offset to avoid z-fighting with Earth
-const SEG      = 64;              // Base ring / cone segments
-const MAX_SATS = 15;              // Pool size (matches max satelliteCount)
+const R_E = 6371.0;
+const MU = 398600.4418;
+const SCALE = 1 / R_E;
+const SHELL_RADIUS = 1.008;
+const MAX_SATS = 15;
+const MIN_ELEVATION_RAD = 10 * Math.PI / 180;
+
+const VERTEX_SHADER = `
+  varying vec3 vDir;
+
+  void main() {
+    vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const FRAGMENT_SHADER = `
+  uniform vec3 uCenterDir;
+  uniform vec3 uCameraDir;
+  uniform vec3 uColor;
+  uniform float uCosTheta;
+  uniform float uOpacity;
+
+  varying vec3 vDir;
+
+  void main() {
+    vec3 dir = normalize(vDir);
+
+    // Do not draw far-side shell fragments through/around the Earth limb.
+    if (dot(dir, normalize(uCameraDir)) <= 0.0) discard;
+
+    float d = dot(dir, normalize(uCenterDir));
+
+    // Inside footprint when angular distance <= theta, i.e. d >= cos(theta).
+    float edgeSoftness = 0.006;
+    float fill = smoothstep(uCosTheta - edgeSoftness, uCosTheta + edgeSoftness, d);
+
+    // Crisp boundary at the physical coverage angle.
+    float ringDistance = abs(d - uCosTheta);
+    float ring = 1.0 - smoothstep(0.0009, 0.0018, ringDistance);
+
+    float alpha = fill * 0.16 + ring * 0.34;
+    if (alpha < 0.01) discard;
+
+    vec3 color = mix(uColor, vec3(1.0), ring * 0.28);
+    gl_FragColor = vec4(color, alpha * uOpacity);
+  }
+`;
 
 function getColor(constellation: string): string {
-  return CONSTELLATION_COLORS[constellation] ?? '#8ec9ff';
+  return CONSTELLATION_COLORS[constellation] ?? '#35f5ff';
 }
 
-// ── Virtual Walker orbit — ECI position (km), matches Satellites.tsx ──
+function selectUniformly<T>(arr: T[], count: number): T[] {
+  if (count >= arr.length) return arr;
+  const step = arr.length / count;
+  return Array.from({ length: count }, (_, i) => arr[Math.floor(i * step)]);
+}
+
 function virtualECI(
-  i: number, total: number, altKm: number, tSec: number, planes: number,
+  i: number,
+  total: number,
+  altKm: number,
+  tSec: number,
+  planes: number,
 ): { x: number; y: number; z: number } {
-  const a    = R_E + altKm;
-  const n    = Math.sqrt(MU / (a * a * a));
+  const a = R_E + altKm;
+  const n = Math.sqrt(MU / (a * a * a));
   const incl = (55 * Math.PI) / 180;
-  const P    = Math.max(1, Math.min(planes, total));
-  const spp  = Math.ceil(total / P);
-  const pi   = i % P;
-  const si   = Math.floor(i / P);
+  const P = Math.max(1, Math.min(planes, total));
+  const spp = Math.ceil(total / P);
+  const pi = i % P;
+  const si = Math.floor(i / P);
   const raan = (pi / P) * 2 * Math.PI;
-  const F    = P > 1 ? Math.max(1, Math.floor(P / 2)) : 0;
+  const F = P > 1 ? Math.max(1, Math.floor(P / 2)) : 0;
   const phase = (si / spp) * 2 * Math.PI
     + (F * pi / P) * (2 * Math.PI / spp);
-  const M    = n * tSec + phase;
+  const M = n * tSec + phase;
   const xOrb = a * Math.cos(M);
   const yOrb = a * Math.sin(M);
   const cosR = Math.cos(raan), sinR = Math.sin(raan);
@@ -72,269 +105,185 @@ function virtualECI(
   };
 }
 
-// ── Orthonormal basis (v, w) perpendicular to unit vector u ───────────
-function perpBasis(ux: number, uy: number, uz: number) {
-  let vx: number, vy: number, vz: number;
-  if (Math.abs(ux) < 0.9) { vx = 0;   vy =  uz; vz = -uy; }
-  else                     { vx = -uz; vy =  0;  vz =  ux; }
-  const L = Math.sqrt(vx * vx + vy * vy + vz * vz);
-  vx /= L; vy /= L; vz /= L;
-  return {
-    vx, vy, vz,
-    wx: uy * vz - uz * vy,
-    wy: uz * vx - ux * vz,
-    wz: ux * vy - uy * vx,
-  };
+function usefulCoverageCosTheta(rKm: number, commRangeKm: number): number | null {
+  const altitudeKm = rKm - R_E;
+  if (altitudeKm <= 0 || commRangeKm <= altitudeKm) return null;
+
+  const sinElev = Math.sin(MIN_ELEVATION_RAD);
+  const cosElev = Math.cos(MIN_ELEVATION_RAD);
+  const rangeAtMinElevation = Math.sqrt(Math.max(0, rKm * rKm - R_E * R_E * cosElev * cosElev))
+    - R_E * sinElev;
+
+  const slantKm = Math.min(commRangeKm, rangeAtMinElevation);
+  if (!Number.isFinite(slantKm) || slantKm <= altitudeKm) return null;
+
+  const cosTheta = (rKm * rKm + R_E * R_E - slantKm * slantKm) / (2 * rKm * R_E);
+  return Math.max(-1, Math.min(1, cosTheta));
 }
 
-// Reusable scratch buffer for base ring points (scene coords, Y-up).
-// Filled by writeBase() and read by writeCone() within the same frame.
-const baseRing = new Float32Array(SEG * 3);
-
-// Compute horizon ring points on Earth surface for a satellite at
-// ECI (ex, ey, ez). Returns false if the satellite is too low for a
-// meaningful horizon (inside or near the atmosphere).
-function writeBase(ex: number, ey: number, ez: number): boolean {
-  const r = Math.sqrt(ex * ex + ey * ey + ez * ez);
-  if (r < R_E + 50) return false;
-
-  const ct = R_E / r;                                 // cos(θ)
-  const st = Math.sqrt(Math.max(0, 1 - ct * ct));     // sin(θ)
-  const ux = ex / r, uy = ey / r, uz = ez / r;
-  const { vx, vy, vz, wx, wy, wz } = perpBasis(ux, uy, uz);
-
-  for (let i = 0; i < SEG; i++) {
-    const phi = (i / SEG) * 2 * Math.PI;
-    const cp  = Math.cos(phi), sp = Math.sin(phi);
-    // Point on unit sphere at angular offset θ from u, phase φ around u.
-    const rx  = ct * ux + st * (cp * vx + sp * wx);
-    const ry  = ct * uy + st * (cp * vy + sp * wy);
-    const rz  = ct * uz + st * (cp * vz + sp * wz);
-    // ECI (x, y, z) → scene Y-up: (x, z, -y), scaled to Earth-surface radius.
-    baseRing[i * 3]     =  rx * SURF;
-    baseRing[i * 3 + 1] =  rz * SURF;
-    baseRing[i * 3 + 2] = -ry * SURF;
-  }
-  return true;
-}
-
-// Write SEG triangles that span (apex, base[i], base[i+1]) for the
-// translucent cone body. Call writeBase() first — this reads baseRing.
-function writeCone(buf: Float32Array, ex: number, ey: number, ez: number) {
-  // Apex = satellite position (ECI → Y-up scene coords)
-  const sx =  ex * SCALE;
-  const sy =  ez * SCALE;
-  const sz = -ey * SCALE;
-
-  let idx = 0;
-  for (let i = 0; i < SEG; i++) {
-    const a = i * 3;
-    const b = ((i + 1) % SEG) * 3;
-    // Apex
-    buf[idx++] = sx;             buf[idx++] = sy;             buf[idx++] = sz;
-    // Base i
-    buf[idx++] = baseRing[a];    buf[idx++] = baseRing[a + 1]; buf[idx++] = baseRing[a + 2];
-    // Base i+1
-    buf[idx++] = baseRing[b];    buf[idx++] = baseRing[b + 1]; buf[idx++] = baseRing[b + 2];
-  }
-}
-
-// Copy the already-computed base ring to a per-satellite ring buffer.
-function writeRing(buf: Float32Array) {
-  buf.set(baseRing);
-}
-
-// ── Pool entry ────────────────────────────────────────────────────────
-type PoolEntry = {
-  coneMesh: Mesh;
-  coneMat:  MeshBasicMaterial;
-  coneGeo:  BufferGeometry;
-  coneBuf:  Float32Array;
-  coneAttr: Float32BufferAttribute;
-
-  ringLine: LineLoop;
-  ringMat:  LineBasicMaterial;
-  ringGeo:  BufferGeometry;
-  ringBuf:  Float32Array;
-  ringAttr: Float32BufferAttribute;
+type CoverageItem = {
+  id: number;
+  color: string;
+  tle?: TLEData;
+  position?: SatellitePosition;
+  virtualIndex?: number;
+  virtualTotal?: number;
+  virtualAltKm?: number;
+  virtualPlanes?: number;
 };
 
-// ── Props ─────────────────────────────────────────────────────────────
+function CoverageFootprint({ item, commRangeKm }: { item: CoverageItem; commRangeKm: number }) {
+  const meshRef = useRef<Mesh>(null);
+  const centerDirRef = useRef(new Vector3());
+  const cameraDirRef = useRef(new Vector3());
+
+  const satrec = useMemo(() => {
+    if (!item.tle) return null;
+    return twoline2satrec(item.tle.tle_line1, item.tle.tle_line2);
+  }, [item.tle]);
+
+  const material = useMemo(() => {
+    return new ShaderMaterial({
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: FRAGMENT_SHADER,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      side: FrontSide,
+      uniforms: {
+        uCenterDir: { value: new Vector3(1, 0, 0) },
+        uCameraDir: { value: new Vector3(0, 0, 1) },
+        uColor: { value: new Color(item.color) },
+        uCosTheta: { value: 1 },
+        uOpacity: { value: 0.9 },
+      },
+    });
+  }, [item.color]);
+
+  useFrame(({ camera }) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    let eci: { x: number; y: number; z: number } | null = null;
+
+    if (item.virtualIndex !== undefined && item.virtualTotal !== undefined && item.virtualAltKm !== undefined) {
+      eci = virtualECI(
+        item.virtualIndex,
+        item.virtualTotal,
+        item.virtualAltKm,
+        getSimTime() / 1000,
+        item.virtualPlanes ?? 1,
+      );
+    } else if (satrec) {
+      const pv = propagate(satrec, new Date(getSimTime()));
+      if (pv.position && typeof pv.position !== 'boolean') {
+        eci = pv.position as { x: number; y: number; z: number };
+      }
+    } else if (item.position) {
+      eci = item.position.eci;
+    }
+
+    if (!eci) {
+      mesh.visible = false;
+      return;
+    }
+
+    const rKm = Math.sqrt(eci.x * eci.x + eci.y * eci.y + eci.z * eci.z);
+    if (!Number.isFinite(rKm) || rKm < R_E + 50) {
+      mesh.visible = false;
+      return;
+    }
+
+    centerDirRef.current.set(eci.x * SCALE, eci.z * SCALE, -eci.y * SCALE).normalize();
+    cameraDirRef.current.copy(camera.position).normalize();
+
+    material.uniforms.uCenterDir.value.copy(centerDirRef.current);
+    material.uniforms.uCameraDir.value.copy(cameraDirRef.current);
+    const cosTheta = usefulCoverageCosTheta(rKm, commRangeKm);
+    if (cosTheta == null) {
+      mesh.visible = false;
+      return;
+    }
+    material.uniforms.uCosTheta.value = cosTheta;
+    mesh.visible = true;
+  });
+
+  return (
+    <mesh ref={meshRef} renderOrder={220} frustumCulled={false} visible={false}>
+      <sphereGeometry args={[SHELL_RADIUS, 96, 48]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
+
 export interface CoverageZonesProps {
+  positions: SatellitePosition[];
   tleData: TLEData[];
   satelliteConstellations: Record<number, string>;
 }
 
-// Outer gate: subscribes to `showCoverage` and unmounts the inner tree
-// when the toggle is off. This is the single source of truth for
-// visibility — no stuck state, no lingering meshes.
-export function CoverageZones(props: CoverageZonesProps) {
+export function CoverageZones({ positions, tleData, satelliteConstellations }: CoverageZonesProps) {
   const showCoverage = useStore((s) => s.showCoverage);
-  if (!showCoverage) return null;
-  return <CoverageZonesInner {...props} />;
-}
+  const satelliteCount = useStore((s) => s.satelliteCount);
+  const orbitAltitudeKm = useStore((s) => s.orbitAltitudeKm);
+  const orbitalPlanes = useStore((s) => s.orbitalPlanes);
+  const activeConstellations = useStore((s) => s.activeConstellations);
+  const commRangeKm = useStore((s) => s.commRangeKm);
 
-function CoverageZonesInner({ tleData, satelliteConstellations }: CoverageZonesProps) {
-  const groupRef   = useRef<Group>(null);
-  const poolRef    = useRef<PoolEntry[] | null>(null);
-  const satrecsRef = useRef<Record<number, ReturnType<typeof twoline2satrec>>>({});
-
-  // Refs shadow the latest props so useFrame never reads stale closures.
-  const tleRef             = useRef(tleData);             tleRef.current = tleData;
-  const constellationsRef  = useRef(satelliteConstellations);
-  constellationsRef.current = satelliteConstellations;
-
-  // Rebuild satrec cache whenever TLE data changes.
-  useEffect(() => {
-    const map: Record<number, ReturnType<typeof twoline2satrec>> = {};
-    tleData.forEach((tle) => {
-      map[tle.norad_id] = twoline2satrec(tle.tle_line1, tle.tle_line2);
-    });
-    satrecsRef.current = map;
-  }, [tleData]);
-
-  // Allocate the pool once on mount; dispose on unmount.
-  useEffect(() => {
-    const group = groupRef.current;
-    if (!group) return;
-
-    const pool: PoolEntry[] = [];
-    for (let i = 0; i < MAX_SATS; i++) {
-      // Cone body — SEG triangles × 3 verts × 3 coords.
-      const coneBuf  = new Float32Array(SEG * 3 * 3);
-      const coneAttr = new Float32BufferAttribute(coneBuf, 3);
-      coneAttr.setUsage(35048); // DYNAMIC_DRAW
-      const coneGeo  = new BufferGeometry();
-      coneGeo.setAttribute('position', coneAttr);
-      const coneMat  = new MeshBasicMaterial({
-        color:       '#3389ff',
-        transparent: true,
-        opacity:     0.14,
-        side:        DoubleSide,
-        depthWrite:  false,
-      });
-      const coneMesh = new Mesh(coneGeo, coneMat);
-      coneMesh.visible       = false;
-      coneMesh.frustumCulled = false;
-      coneMesh.renderOrder   = 1;
-
-      // Base ring outline on Earth surface — closed loop of SEG verts.
-      const ringBuf  = new Float32Array(SEG * 3);
-      const ringAttr = new Float32BufferAttribute(ringBuf, 3);
-      ringAttr.setUsage(35048);
-      const ringGeo  = new BufferGeometry();
-      ringGeo.setAttribute('position', ringAttr);
-      const ringMat  = new LineBasicMaterial({
-        color:       '#3389ff',
-        transparent: true,
-        opacity:     0.9,
-        depthWrite:  false,
-      });
-      const ringLine = new LineLoop(ringGeo, ringMat);
-      ringLine.visible       = false;
-      ringLine.frustumCulled = false;
-      ringLine.renderOrder   = 2;
-
-      group.add(coneMesh, ringLine);
-      pool.push({
-        coneMesh, coneMat, coneGeo, coneBuf, coneAttr,
-        ringLine, ringMat, ringGeo, ringBuf, ringAttr,
-      });
-    }
-    poolRef.current = pool;
-
-    return () => {
-      for (const p of pool) {
-        group.remove(p.coneMesh, p.ringLine);
-        p.coneGeo.dispose(); p.coneMat.dispose();
-        p.ringGeo.dispose(); p.ringMat.dispose();
-      }
-      poolRef.current = null;
-    };
-  }, []);
-
-  useFrame(() => {
-    const pool = poolRef.current;
-    if (!pool) return;
-
-    const {
-      satelliteCount,
-      orbitAltitudeKm,
-      orbitalPlanes,
-      activeConstellations,
-    } = useStore.getState();
-
-    const curTLE = tleRef.current;
-    const curCon = constellationsRef.current;
-
-    const simTime    = getSimTime();
-    const simTimeSec = simTime / 1000;
-    const useVirtual = orbitAltitudeKm > 0;
-
-    // Pick the same satellites Satellites.tsx renders via the shared
-    // selection helper — zones always align with visible markers.
-    const selectedTLE = useVirtual
-      ? []
-      : selectRealSatellites(curTLE, satelliteCount, activeConstellations, curCon);
-
-    const virtualLimit = useVirtual ? satelliteCount : 0;
-    const limit = useVirtual ? virtualLimit : selectedTLE.length;
-
-    for (let i = 0; i < MAX_SATS; i++) {
-      const p = pool[i];
-
-      if (i >= limit) {
-        p.coneMesh.visible = false;
-        p.ringLine.visible = false;
-        continue;
-      }
-
-      let ex: number, ey: number, ez: number;
-      let color = '#8ec9ff';
-
-      if (useVirtual) {
+  const items = useMemo<CoverageItem[]>(() => {
+    if (orbitAltitudeKm > 0) {
+      const virtualItems: CoverageItem[] = [];
+      for (let i = 0; i < satelliteCount; i++) {
         const constellation = CONSTELLATION_NAMES[i % CONSTELLATION_NAMES.length];
-        if (!activeConstellations.includes(constellation)) {
-          p.coneMesh.visible = false; p.ringLine.visible = false;
-          continue;
-        }
-        const eci = virtualECI(i, satelliteCount, orbitAltitudeKm, simTimeSec, orbitalPlanes);
-        ex = eci.x; ey = eci.y; ez = eci.z;
-        color = getColor(constellation);
-      } else {
-        const tle = selectedTLE[i];
-        if (!tle) { p.coneMesh.visible = false; p.ringLine.visible = false; continue; }
-        const satrec = satrecsRef.current[tle.norad_id];
-        if (!satrec) { p.coneMesh.visible = false; p.ringLine.visible = false; continue; }
-        const pv = propagate(satrec, new Date(simTime));
-        if (!pv.position || typeof pv.position === 'boolean') {
-          p.coneMesh.visible = false; p.ringLine.visible = false;
-          continue;
-        }
-        const pos = pv.position as { x: number; y: number; z: number };
-        ex = pos.x; ey = pos.y; ez = pos.z;
-        color = getColor(curCon[tle.norad_id] ?? '');
+        if (!activeConstellations.includes(constellation)) continue;
+        virtualItems.push({
+          id: 90000 + i,
+          color: getColor(constellation),
+          virtualIndex: i,
+          virtualTotal: satelliteCount,
+          virtualAltKm: orbitAltitudeKm,
+          virtualPlanes: orbitalPlanes,
+        });
       }
-
-      if (!writeBase(ex, ey, ez)) {
-        p.coneMesh.visible = false; p.ringLine.visible = false;
-        continue;
-      }
-
-      p.coneMat.color.setStyle(color);
-      p.ringMat.color.setStyle(color);
-
-      writeCone(p.coneBuf, ex, ey, ez);
-      p.coneAttr.needsUpdate = true;
-      p.coneGeo.computeBoundingSphere();
-      p.coneMesh.visible = true;
-
-      writeRing(p.ringBuf);
-      p.ringAttr.needsUpdate = true;
-      p.ringGeo.computeBoundingSphere();
-      p.ringLine.visible = true;
+      return virtualItems.slice(0, MAX_SATS);
     }
-  });
 
-  return <group ref={groupRef} />;
+    const positionById = new Map(positions.map((pos) => [pos.norad_id, pos]));
+
+    if (tleData.length > 0) {
+      const filtered = tleData.filter((tle) => {
+        const constellation = satelliteConstellations[tle.norad_id] ?? tle.constellation;
+        return !constellation || activeConstellations.includes(constellation);
+      });
+      return selectUniformly(filtered, satelliteCount).slice(0, MAX_SATS).map((tle) => {
+        const constellation = satelliteConstellations[tle.norad_id] ?? tle.constellation;
+        return {
+          id: tle.norad_id,
+          color: getColor(constellation),
+          tle,
+          position: positionById.get(tle.norad_id),
+        };
+      });
+    }
+
+    const filtered = positions.filter((pos) => {
+      const constellation = satelliteConstellations[pos.norad_id];
+      return !constellation || activeConstellations.includes(constellation);
+    });
+    return selectUniformly(filtered, satelliteCount).slice(0, MAX_SATS).map((position) => ({
+      id: position.norad_id,
+      color: getColor(satelliteConstellations[position.norad_id] ?? ''),
+      position,
+    }));
+  }, [activeConstellations, orbitAltitudeKm, orbitalPlanes, positions, satelliteConstellations, satelliteCount, tleData]);
+
+  if (!showCoverage || items.length === 0) return null;
+
+  return (
+    <group>
+      {items.map((item) => (
+        <CoverageFootprint key={item.id} item={item} commRangeKm={commRangeKm} />
+      ))}
+    </group>
+  );
 }

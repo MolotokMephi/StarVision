@@ -213,11 +213,18 @@ async def health():
     if cache["stale"]:
         reasons.append("cache_stale")
     status = "degraded" if degraded else "ok"
+    sats = get_all_satellites()
+    operational = sum(1 for s in sats if s["operational"])
     return {
         "status": status,
         "reasons": reasons,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "tle_cache": cache,
+        "catalog": {
+            "total": len(sats),
+            "operational": operational,
+            "archival": len(sats) - operational,
+        },
     }
 
 
