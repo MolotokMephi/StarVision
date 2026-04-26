@@ -6,8 +6,6 @@
 - robust JSON extraction in ai_assistant._parse_ai_response (no greedy regex)
 """
 
-import asyncio
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
