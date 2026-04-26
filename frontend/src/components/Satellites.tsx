@@ -257,6 +257,11 @@ const SatMarker = memo(function SatMarker({
           position={[0, 0.05, 0]}
           center
           distanceFactor={3}
+          // Cap label z-index below the UI panels (which sit at z-10/z-20).
+          // Default drei range starts at 16777271, which makes labels float
+          // over the open control panel. Keep relative ordering inside the
+          // 3D layer (5 → 0).
+          zIndexRange={[5, 0]}
           style={{ pointerEvents: 'none' }}
         >
           <div className="sat-label" style={{ color }}>

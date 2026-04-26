@@ -153,6 +153,26 @@ async def test_get_orbit_path_not_found(client):
 
 
 @pytest.mark.asyncio
+async def test_get_all_orbit_paths_batch(client):
+    """The batch endpoint must return paths for all operational satellites
+    in one call — this is the whole point of the latency fix."""
+    resp = await client.get("/api/orbits?steps=10&step_sec=60")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "paths" in data
+    assert "names" in data
+    # Should contain at least one operational satellite, and every entry
+    # should be a 10-point path.
+    assert len(data["paths"]) > 0
+    for nid, path in data["paths"].items():
+        assert int(nid) > 0
+        assert len(path) == 10
+        assert {"x", "y", "z"} <= set(path[0].keys())
+    # Archival sats (e.g. 53385 Geoscan-Edelveis) must not appear.
+    assert "53385" not in data["paths"] and 53385 not in data["paths"]
+
+
+@pytest.mark.asyncio
 async def test_get_orbital_elements(client):
     resp = await client.get("/api/orbital-elements/46493")
     assert resp.status_code == 200
@@ -206,3 +226,40 @@ async def test_get_config(client):
     assert data["earth_radius_km"] == 6371.0
     assert "constellations" in data
     assert len(data["constellations"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_starai_chat_does_not_forward_client_credentials(client, monkeypatch):
+    captured = {}
+
+    async def fake_ask_starai(user_message, conversation_history=None, lang="ru"):
+        captured["user_message"] = user_message
+        captured["conversation_history"] = conversation_history
+        captured["lang"] = lang
+        return {
+            "message": "ok",
+            "actions": [],
+            "rejected_actions": [],
+            "source": "test",
+        }
+
+    monkeypatch.setattr("main.ask_starai", fake_ask_starai)
+    resp = await client.post(
+        "/api/starai/chat",
+        json={
+            "message": "hello",
+            "history": [{"role": "assistant", "content": "previous"}],
+            "lang": "en",
+            "provider": "openrouter",
+            "api_key": "client-key-must-not-be-forwarded",
+            "model": "client/model",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["source"] == "test"
+    assert captured == {
+        "user_message": "hello",
+        "conversation_history": [{"role": "assistant", "content": "previous"}],
+        "lang": "en",
+    }

@@ -11,7 +11,8 @@ import { CollisionPanel } from './components/CollisionPanel';
 import { OptimizerPanel } from './components/OptimizerPanel';
 import { useStore } from './hooks/useStore';
 import {
-  fetchSatellites, fetchPositions, fetchOrbitPath, fetchTLE, fetchHealth, ApiError,
+  fetchSatellites, fetchPositions, fetchOrbitPath, fetchAllOrbitPaths,
+  fetchTLE, fetchHealth, ApiError,
 } from './services/api';
 import { getSimTime } from './simClock';
 import { CONSTELLATION_NAMES } from './constants';
@@ -25,6 +26,7 @@ export default function App() {
     orbitPaths, setOrbitPath,
     tleData, setTleData,
     setTleMeta,
+    setOrbitPaths,
     setBackendHealth,
     pushToast,
     logEvent,
@@ -152,35 +154,27 @@ export default function App() {
     }
   }, [selectedSatellite, tleSource, orbitPaths, setOrbitPath, logEvent]);
 
-  // Preload orbits for all satellites (batches of 4 to reduce load).
+  // Preload orbits for all operational satellites in a single round-trip.
   // Re-fetches when TLE source changes so tracks stay consistent with live data.
+  // Replaces the old N×fetchOrbitPath fan-out — that flow was the dominant
+  // cost when switching to CelesTrak (15 round-trips serialised in batches).
   useEffect(() => {
     if (satellites.length === 0) return;
     let cancelled = false;
-    const loadBatched = async () => {
-      const batchSize = 4;
-      for (let i = 0; i < satellites.length; i += batchSize) {
+    fetchAllOrbitPaths(120, 60, tleSource)
+      .then((res) => {
         if (cancelled) return;
-        const batch = satellites.slice(i, i + batchSize);
-        await Promise.allSettled(
-          batch
-            // Skip archival — backend returns 409 for those.
-            .filter((sat) => sat.status !== 'deorbited')
-            .map((sat) =>
-              fetchOrbitPath(sat.norad_id, 120, 60, tleSource)
-                .then((res) => setOrbitPath(res.norad_id, res.path))
-                .catch((err) => {
-                  if (err instanceof ApiError && err.status === 409) return;
-                  // Don't toast for each failed orbit; log only.
-                  logEvent({ level: 'warning', kind: 'api_error', message: `orbit ${sat.norad_id} failed` });
-                })
-            )
-        );
-      }
-    };
-    loadBatched();
+        const paths: Record<number, typeof res.paths[number]> = {};
+        for (const [k, v] of Object.entries(res.paths)) paths[Number(k)] = v;
+        setOrbitPaths(paths);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const detail = err instanceof ApiError ? err.detail : String(err);
+        logEvent({ level: 'warning', kind: 'api_error', message: 'orbits batch fetch failed', details: detail });
+      });
     return () => { cancelled = true; };
-  }, [satellites, tleSource, setOrbitPath, logEvent]);
+  }, [satellites, tleSource, setOrbitPaths, logEvent]);
 
   // Map norad_id → constellation
   const satelliteConstellations = useMemo(() => {

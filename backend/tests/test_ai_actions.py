@@ -1,6 +1,8 @@
 """Tests for StarAI action validation."""
 
-from ai_assistant import validate_actions
+import pytest
+
+from ai_assistant import ask_starai, validate_actions
 
 
 def test_accepts_valid_actions():
@@ -88,3 +90,42 @@ def test_non_list_input():
     accepted, rejected = validate_actions("not a list")  # type: ignore[arg-type]
     assert accepted == []
     assert rejected
+
+
+@pytest.mark.asyncio
+async def test_ask_starai_prefers_server_openrouter_key(monkeypatch):
+    calls = []
+
+    async def fake_openrouter(user_message, history, lang, api_key, model):
+        calls.append((user_message, history, lang, api_key, model))
+        return {
+            "message": "ok",
+            "actions": [],
+            "rejected_actions": [],
+            "source": "openrouter",
+        }
+
+    async def fail_anthropic(*_args, **_kwargs):
+        raise AssertionError("Anthropic should not be called when OpenRouter is configured")
+
+    history = [{"role": "assistant", "content": "previous"}]
+    monkeypatch.setenv("OPENROUTER_API_KEY", "server-openrouter-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "server-anthropic-key")
+    monkeypatch.setattr("ai_assistant._ask_openrouter", fake_openrouter)
+    monkeypatch.setattr("ai_assistant._ask_anthropic", fail_anthropic)
+
+    result = await ask_starai("hello", history, lang="en")
+
+    assert result["source"] == "openrouter"
+    assert calls == [("hello", history, "en", "server-openrouter-key", None)]
+
+
+@pytest.mark.asyncio
+async def test_ask_starai_falls_back_offline_without_server_keys(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    result = await ask_starai("hello", [], lang="en")
+
+    assert result["source"] == "offline"
+    assert result["message"]

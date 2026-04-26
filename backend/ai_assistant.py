@@ -7,11 +7,15 @@ import json
 import os
 import re
 import logging
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
+from dotenv import load_dotenv
 import httpx
 
 from satellites import RUSSIAN_CUBESATS, is_operational
+
+load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 
 # ── Action validation ───────────────────────────────────────────────
@@ -122,8 +126,33 @@ def validate_actions(actions: List[Any]) -> Tuple[List[Dict[str, Any]], List[str
 
 # Anthropic API (via HTTP, no SDK — for simplicity)
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
+# OpenRouter — OpenAI-compatible gateway. The key is stored server-side in
+# backend/.env so the browser never receives or forwards it.
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini"
+
+
+def _env(name: str) -> str:
+    return os.getenv(name, "").strip()
+
+
+def _get_anthropic_api_key() -> str:
+    return _env("ANTHROPIC_API_KEY")
+
+
+def _get_anthropic_model() -> str:
+    return _env("ANTHROPIC_MODEL") or ANTHROPIC_DEFAULT_MODEL
+
+
+def _get_openrouter_api_key() -> str:
+    return _env("OPENROUTER_API_KEY")
+
+
+def _get_openrouter_model(model: Optional[str] = None) -> str:
+    default_model = _env("OPENROUTER_DEFAULT_MODEL") or OPENROUTER_DEFAULT_MODEL
+    return (model or default_model).strip() or default_model
 
 SYSTEM_PROMPT_BASE = """You are StarAI, the intelligent assistant of the StarVision project.
 StarVision is a digital twin of a constellation of Russian cubesats and small spacecraft.
@@ -185,86 +214,163 @@ def _build_system_prompt(lang: str = "ru") -> str:
     return SYSTEM_PROMPT_BASE.format(lang_instruction=instruction)
 
 
+def _parse_ai_response(text: str) -> Optional[Dict[str, Any]]:
+    """Best-effort JSON extraction from a model response. Models often
+    wrap JSON in ```json … ``` fences or surround it with prose."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+    json_obj_match = re.search(r'\{[\s\S]*"message"[\s\S]*\}', text)
+    if json_obj_match:
+        try:
+            return json.loads(json_obj_match.group(0))
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+async def _ask_anthropic(
+    user_message: str,
+    history: List[Dict[str, str]],
+    lang: str,
+    api_key: str,
+) -> Dict[str, Any]:
+    messages = list(history) + [{"role": "user", "content": user_message}]
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            ANTHROPIC_API_URL,
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": _get_anthropic_model(),
+                "max_tokens": 1024,
+                "system": _build_system_prompt(lang),
+                "messages": messages,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    text = "".join(
+        block.get("text", "")
+        for block in data.get("content", [])
+        if block.get("type") == "text"
+    )
+    parsed = _parse_ai_response(text)
+    if parsed is None:
+        return _wrap_response(text, [], lang=lang, source="anthropic")
+    return _wrap_response(
+        parsed.get("message", text),
+        parsed.get("actions", []),
+        lang=lang,
+        source="anthropic",
+    )
+
+
+async def _ask_openrouter(
+    user_message: str,
+    history: List[Dict[str, str]],
+    lang: str,
+    api_key: str,
+    model: Optional[str],
+) -> Dict[str, Any]:
+    """Call OpenRouter (OpenAI-compatible). The system prompt goes as a
+    system role message; assistant/user history is forwarded as-is.
+    """
+    chosen_model = _get_openrouter_model(model)
+    messages: List[Dict[str, str]] = [
+        {"role": "system", "content": _build_system_prompt(lang)},
+    ]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            OPENROUTER_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                # OpenRouter uses these for model attribution / leaderboard.
+                "HTTP-Referer": "https://github.com/starvision",
+                "X-Title": "StarVision",
+            },
+            json={
+                "model": chosen_model,
+                "messages": messages,
+                "max_tokens": 1024,
+                # Some OpenRouter providers honour this hint and skip prose.
+                "response_format": {"type": "json_object"},
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    choices = data.get("choices") or []
+    text = ""
+    if choices:
+        msg = choices[0].get("message") or {}
+        text = msg.get("content") or ""
+    parsed = _parse_ai_response(text)
+    if parsed is None:
+        return _wrap_response(text, [], lang=lang, source="openrouter")
+    return _wrap_response(
+        parsed.get("message", text),
+        parsed.get("actions", []),
+        lang=lang,
+        source="openrouter",
+    )
+
+
 async def ask_starai(
     user_message: str,
     conversation_history: List[Dict[str, str]] = None,
     lang: str = "ru",
 ) -> Dict[str, Any]:
+    """Send a message to StarAI and receive response + UI commands.
+
+    Provider routing:
+    - server-side OPENROUTER_API_KEY -> OpenRouter with default model
+    - server-side ANTHROPIC_API_KEY -> Claude direct fallback
+    - otherwise → offline fallback (canned responses)
     """
-    Send a message to StarAI and receive response + UI commands.
-    """
-    if not ANTHROPIC_API_KEY:
-        # Fallback without API key — basic responses
-        raw = _fallback_response(user_message, lang)
-        return _wrap_response(raw.get("message", ""), raw.get("actions", []), lang=lang, source="offline")
+    history = list(conversation_history or [])
 
-    messages = []
-    if conversation_history:
-        messages.extend(conversation_history)
-    messages.append({"role": "user", "content": user_message})
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                ANTHROPIC_API_URL,
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": MODEL,
-                    "max_tokens": 1024,
-                    "system": _build_system_prompt(lang),
-                    "messages": messages,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        # Extract response text
-        content = data.get("content", [])
-        text = ""
-        for block in content:
-            if block.get("type") == "text":
-                text += block.get("text", "")
-
-        # Parse JSON from response (with ```json block support)
-        parsed = None
+    # 1. Server-side OpenRouter key from backend/.env.
+    openrouter_key = _get_openrouter_api_key()
+    if openrouter_key:
         try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
-            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
-            if json_match:
-                try:
-                    parsed = json.loads(json_match.group(1).strip())
-                except json.JSONDecodeError:
-                    parsed = None
-            if parsed is None:
-                json_obj_match = re.search(r'\{[\s\S]*"message"[\s\S]*\}', text)
-                if json_obj_match:
-                    try:
-                        parsed = json.loads(json_obj_match.group(0))
-                    except json.JSONDecodeError:
-                        parsed = None
+            return await _ask_openrouter(user_message, history, lang, openrouter_key, None)
+        except Exception:
+            logging.exception("StarAI OpenRouter call failed")
+            # Fall through to Anthropic fallback or offline mode.
 
-        if parsed is None:
-            return _wrap_response(text, [], lang=lang)
-        return _wrap_response(parsed.get("message", text), parsed.get("actions", []), lang=lang)
+    # 2. Server-side Anthropic key as fallback.
+    anthropic_key = _get_anthropic_api_key()
+    if anthropic_key:
+        try:
+            return await _ask_anthropic(user_message, history, lang, anthropic_key)
+        except Exception:
+            logging.exception("StarAI Anthropic call failed")
+            # Fall through to offline.
 
-    except Exception:
-        # Log full error on server, do not expose details to user
-        logging.exception("StarAI connection error")
-        return _wrap_response(
-            (
-                "StarAI connection error. Working in offline mode."
-                if lang == "en" else
-                "Ошибка соединения с StarAI. Работаю в офлайн-режиме."
-            ),
-            [],
-            lang=lang,
-            source="offline",
-        )
+    # 3. Fallback canned responses.
+    raw = _fallback_response(user_message, lang)
+    return _wrap_response(
+        raw.get("message", ""),
+        raw.get("actions", []),
+        lang=lang,
+        source="offline",
+    )
 
 
 def _wrap_response(

@@ -291,12 +291,14 @@ export function StarAIChat() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setChatOpen(false)}
-          className="text-star-500 hover:text-star-200 transition-colors w-7 h-7 rounded-full hover:bg-white/5 flex items-center justify-center"
-        >
-          ×
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setChatOpen(false)}
+            className="text-star-500 hover:text-star-200 transition-colors w-7 h-7 rounded-full hover:bg-white/5 flex items-center justify-center"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

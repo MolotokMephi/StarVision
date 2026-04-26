@@ -123,7 +123,6 @@ export const translations = {
   'chat.hint4': { ru: 'Сколько активных связей?', en: 'How many active links?' },
   'chat.hint5': { ru: 'Покажи все орбиты', en: 'Show all orbits' },
   'chat.hint6': { ru: 'Установи 10 спутников', en: 'Set 10 satellites' },
-
   // ISL tooltip
   'isl.distance': { ru: 'км', en: 'km' },
 

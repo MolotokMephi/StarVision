@@ -7,12 +7,15 @@ import logging
 import math
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+load_dotenv(Path(__file__).resolve().with_name(".env"))
 
 from satellites import (
     get_all_satellites, get_satellite_by_id,
@@ -26,8 +29,6 @@ from ai_assistant import ask_starai
 from celestrak import (
     get_tle_by_source, invalidate_cache, fetch_celestrak_tle, get_cache_status,
 )
-
-load_dotenv()
 
 # ── Application ─────────────────────────────────────────────────────
 ALLOWED_ORIGINS = os.getenv(
@@ -48,6 +49,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _warm_celestrak_cache() -> None:
+    """Fire-and-forget CelesTrak prefetch so the very first user click on
+    "CelesTrak" finds the cache already populated, instead of waiting
+    ~10 s for the cold round-trip. Failure is logged and ignored — the
+    endpoint still works via embedded fallback.
+    """
+    import asyncio as _asyncio
+
+    async def _bg():
+        try:
+            await fetch_celestrak_tle()
+        except Exception:
+            logging.getLogger(__name__).exception("CelesTrak warm-up failed")
+
+    _asyncio.create_task(_bg())
 
 
 # ── Request models ──────────────────────────────────────────────────
@@ -288,6 +307,42 @@ async def get_orbit_path(
     }
 
 
+@app.get("/api/orbits")
+async def get_all_orbit_paths(
+    steps: int = Query(default=120, ge=10, le=500),
+    step_sec: float = Query(default=60.0, ge=10, le=600),
+    source: str = Query(default="embedded", pattern="^(embedded|celestrak)$"),
+):
+    """Batch orbital tracks for every operational satellite.
+
+    Replaces N individual /api/orbit/{id} round-trips with one call, which
+    cuts the wall-clock cost of switching to the live (CelesTrak) source
+    from N×latency to a single shared TLE-resolve + propagation pass.
+    """
+    tle_override, meta = await _get_tle_override(source)
+    now = datetime.now(timezone.utc)
+    paths: dict[int, list] = {}
+    names: dict[int, str] = {}
+    for sat in get_all_satellites():
+        if not sat["operational"]:
+            continue
+        sat_info = get_satellite_by_id(sat["norad_id"])
+        if not sat_info or not sat_info.tle_line1 or not sat_info.tle_line2:
+            continue
+        path = propagate_orbit_path(sat_info, now, steps, step_sec, tle_override=tle_override)
+        if path:
+            paths[sat_info.norad_id] = path
+            names[sat_info.norad_id] = sat_info.name
+    return {
+        "paths": paths,
+        "names": names,
+        "steps": steps,
+        "step_sec": step_sec,
+        "source": meta["effective_source"],
+        "meta": meta,
+    }
+
+
 @app.get("/api/orbital-elements/{norad_id}")
 async def get_elements(
     norad_id: int,
@@ -425,7 +480,11 @@ async def get_optimized_planes(
 async def starai_chat(req: ChatRequest):
     """Chat with StarAI — response + UI commands."""
     history = [{"role": m.role, "content": m.content} for m in req.history]
-    result = await ask_starai(req.message, history, lang=req.lang)
+    result = await ask_starai(
+        req.message,
+        history,
+        lang=req.lang,
+    )
     return result
 
 

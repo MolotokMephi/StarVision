@@ -16,7 +16,7 @@
 - **Automatic TLE loading from CelesTrak** with source selection (embedded / live)
 - UI controls for satellite count, orbit altitude, communication range, and more
 - Multilingual interface (Russian / English)
-- AI assistant (StarAI) powered by Anthropic Claude API
+- AI assistant (StarAI) powered by server-side OpenRouter API
 
 ---
 
@@ -28,7 +28,7 @@
 - **TLE source: embedded data or CelesTrak** — one-click switching
 - **NASA Blue Marble** Earth texture with Suspense fallback
 - **2 CubeSat 3D models**: 1U (2 solar panels) and 3U (4 panels) — procedural Three.js
-- **StarAI** — built-in AI assistant (Anthropic Claude API) with UI control commands
+- **StarAI** — built-in AI assistant (server-side OpenRouter API) with UI control commands
 - **Virtual Walker orbits** — configurable altitude (400–2000 km), 1–7 orbital planes
 - **Ground coverage zones** — real-time satellite footprint visualization (horizon circle on Earth)
 - **Optimized rendering** — object pooling, throttled raycasting, adaptive DPR
@@ -119,7 +119,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env           # Add ANTHROPIC_API_KEY for StarAI (optional)
+cp .env.example .env           # Add OPENROUTER_API_KEY for StarAI (optional)
 uvicorn main:app --reload --port 8000
 ```
 
@@ -171,7 +171,7 @@ For full architectural documentation with Mermaid diagrams, see **[ARCHITECTURE.
 | State management | Zustand | MIT |
 | Backend | Python FastAPI | MIT |
 | Orbital mechanics (server) | python-sgp4 | MIT |
-| AI assistant | Anthropic Claude API | — |
+| AI assistant | OpenRouter API (server-side) | — |
 | Bundler | Vite | MIT |
 
 ---
